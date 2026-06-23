@@ -1,0 +1,80 @@
+# ============================================================
+# docker-compose.yml — Local Development Stack
+# ============================================================
+# Starts ALL services with one command: docker compose up
+#
+# Services started:
+#   1. postgres  — Database (port 5432)
+#   2. api       — FastAPI backend (port 8000)
+#
+# ChromaDB runs INSIDE the API container (embedded mode)
+# so no separate ChromaDB service needed!
+#
+# HOW TO USE:
+#   Start:   docker compose up --build
+#   Stop:    docker compose down
+#   Logs:    docker compose logs -f api
+#   Reset:   docker compose down -v    (WARNING: deletes data!)
+# ============================================================
+
+version: "3.9"
+
+services:
+
+  # ----------------------------------------------------------
+  # PostgreSQL Database
+  # ----------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine          # Lightweight Alpine Linux version
+    container_name: rca_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rca_user
+      POSTGRES_PASSWORD: rca_password
+      POSTGRES_DB: rca_db
+    ports:
+      - "5432:5432"                    # host:container
+    volumes:
+      - postgres_data:/var/lib/postgresql/data   # Persist data across restarts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rca_user -d rca_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------
+  # FastAPI Backend (our app)
+  # ----------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rca_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"                    # Visit http://localhost:8000
+    env_file:
+      - .env                           # Reads your .env file
+    environment:
+      # Override database URL to use Docker service name
+      DATABASE_URL: postgresql://rca_user:rca_password@postgres:5432/rca_db
+      #                                                  ^^^^^^^^
+      #                                      "postgres" = Docker service name above
+    volumes:
+      - ./backend:/app/backend         # Live reload: changes reflect immediately
+      - chroma_data:/app/chroma_data   # Persist ChromaDB vector data
+    depends_on:
+      postgres:
+        condition: service_healthy     # Wait for Postgres to be ready before starting
+    command: >
+      uvicorn backend.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+
+# ----------------------------------------------------------
+# Named Volumes — Docker managed persistent storage
+# ----------------------------------------------------------
+volumes:
+  postgres_data:      # PostgreSQL data
+  chroma_data:        # ChromaDB vector data
