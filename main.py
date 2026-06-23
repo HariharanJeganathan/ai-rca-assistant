@@ -1,27 +1,38 @@
 """
 main.py — FastAPI Application Entry Point
 ==========================================
-This is where the app STARTS.
+Updated in Step 2 to include all API routers.
 
-When you run: uvicorn backend.main:app --reload
-  → Python finds this file
-  → Creates the FastAPI "app" object
-  → Registers all the routes (URLs)
-  → Starts listening for requests
+WHAT CHANGED FROM STEP 1:
+  - Added imports for rca_router and incidents_router
+  - Registered both routers with app.include_router()
+  - Added /api/v1 prefix to all routes
 
-We'll add more routes in Steps 2–5.
-This file is intentionally kept thin — logic lives in other modules.
+The app now has working API endpoints:
+  GET  /                           → Welcome
+  GET  /health                     → Health check
+  GET  /docs                       → Swagger UI (auto-generated!)
+  POST /api/v1/rca/analyze         → Submit incident for RCA
+  GET  /api/v1/rca/reports         → List all reports
+  GET  /api/v1/rca/reports/{id}    → Get one report
+  POST /api/v1/rca/upload          → Upload PDF/TXT
+  POST /api/v1/incidents/ingest    → Add to knowledge base
+  GET  /api/v1/incidents/search    → Search knowledge base
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import logging
+import os
 
-from config import settings, validate_config, get_llm, get_embeddings
+from config import settings, validate_config
 
-# Set up logging — so we can see what's happening in the terminal
+# Import routers (NEW in Step 2)
+from routers.rca_router import router as rca_router
+from routers.incidents_router import router as incidents_router
+
 logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
@@ -30,30 +41,19 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# Lifespan — runs code on startup and shutdown
+# Lifespan — startup and shutdown
 # ============================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Code here runs ONCE when the app starts.
-    Code after 'yield' runs when the app shuts down.
-
-    Good place to: validate config, warm up models, connect to DB.
-    """
     logger.info(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-
-    # Validate all required environment variables
     try:
         validate_config()
     except EnvironmentError as e:
         logger.error(f"❌ Configuration error: {e}")
         raise
-
-    logger.info(f"✅ App started successfully. LLM: {settings.LLM_PROVIDER}")
-
-    yield   # App runs while we're here
-
-    # Shutdown
+    logger.info(f"✅ App started. LLM: {settings.LLM_PROVIDER.upper()}")
+    logger.info(f"📖 API Docs: http://localhost:8000/docs")
+    yield
     logger.info("👋 Shutting down...")
 
 
@@ -64,98 +64,79 @@ app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="""
-## AI Incident RCA Assistant
+## 🤖 AI Incident RCA Assistant
 
 Automated Root Cause Analysis powered by LangGraph AI agents.
 
-### Features
-- 🤖 **AI-powered RCA** using LangGraph reasoning agents
-- 🔍 **RAG search** — finds similar past incidents from ChromaDB
-- 🔀 **Multi-LLM** — switch between Groq, OpenAI, Azure via config
-- 📊 **PostgreSQL** — stores all RCA reports
-- 📄 **PDF/Text upload** — parse incident reports from files
-
-### How to use
-1. Submit an incident via `POST /api/v1/rca/analyze`
-2. Check status via `GET /api/v1/rca/{incident_id}`
-3. View all reports via `GET /api/v1/rca/reports`
+### Available Endpoints
+- **POST** `/api/v1/rca/analyze` — Submit an incident, get back full RCA
+- **POST** `/api/v1/rca/upload` — Upload a PDF/TXT incident report
+- **GET** `/api/v1/rca/reports` — List all RCA reports
+- **GET** `/api/v1/rca/reports/{id}` — Get specific RCA report
+- **POST** `/api/v1/incidents/ingest` — Add incident to knowledge base
+- **GET** `/api/v1/incidents/search` — Search similar incidents
     """,
-    docs_url="/docs",       # Swagger UI at http://localhost:8000/docs
-    redoc_url="/redoc",     # Alternative docs at http://localhost:8000/redoc
+    docs_url="/docs",
+    redoc_url="/redoc",
     lifespan=lifespan,
 )
-
 
 # ============================================================
 # CORS Middleware
 # ============================================================
-# CORS = Cross-Origin Resource Sharing
-# This allows the frontend (HTML page) to call the API
-# even if they're on different ports (e.g. :3000 vs :8000)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],        # In production, replace * with your frontend URL
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ============================================================
+# Register Routers (NEW in Step 2)
+# ============================================================
+# All routes get prefixed with /api/v1
+# So /rca/analyze becomes /api/v1/rca/analyze
+app.include_router(rca_router, prefix="/api/v1")
+app.include_router(incidents_router, prefix="/api/v1")
 
 # ============================================================
-# Routes — URL endpoints
+# Root Routes
 # ============================================================
-
 @app.get("/", tags=["Root"])
 async def root():
-    """
-    Root endpoint — shows app is alive.
-    Visit http://localhost:8000/ in browser.
-    """
     return {
         "message": f"Welcome to {settings.APP_NAME}!",
         "version": settings.APP_VERSION,
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
+        "endpoints": {
+            "analyze": "POST /api/v1/rca/analyze",
+            "upload":  "POST /api/v1/rca/upload",
+            "reports": "GET  /api/v1/rca/reports",
+            "search":  "GET  /api/v1/incidents/search"
+        }
     }
 
 
 @app.get("/health", tags=["Health"])
 async def health_check():
-    """
-    Health check endpoint.
-    Used by Docker, Railway, Render to know if app is alive.
-    Returns 200 OK if everything is fine.
-    """
     return {
         "status": "healthy",
         "app_name": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "llm_provider": settings.LLM_PROVIDER,
-        "debug_mode": settings.DEBUG,
-        # We'll add real DB checks in Step 5
-        "database_connected": False,    # placeholder
-        "chromadb_connected": False,    # placeholder
+        "database_connected": False,   # Step 5
+        "chromadb_connected": False,   # Step 3
     }
 
 
-# ============================================================
-# Include Routers — we'll add these in later steps
-# ============================================================
-# Step 2: from routers import rca_router
-#         app.include_router(rca_router, prefix="/api/v1")
-#
-# (Commented out for now — files don't exist yet)
-
-
-# ============================================================
-# Run directly (for development only)
-# ============================================================
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
         port=8000,
-        reload=True,        # Auto-restart when code changes
+        reload=True,
         log_level="debug" if settings.DEBUG else "info"
     )
