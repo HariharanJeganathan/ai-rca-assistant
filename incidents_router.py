@@ -1,153 +1,107 @@
 """
-incidents_router.py — Knowledge Base Management Routes
-=======================================================
-This router manages the KNOWLEDGE BASE — the collection of
-past incidents that ChromaDB uses for RAG search.
-
-Think of it like a library:
-  - rca_router.py = the librarian who reads and analyses books
-  - incidents_router.py = the person who ADDS books to the library
-
-When you add an incident to the knowledge base:
-  1. Its text gets converted to a vector (numbers)
-  2. That vector is stored in ChromaDB
-  3. Future RCA requests search this library for similar incidents
-
-URL Structure:
-  POST /api/v1/incidents/ingest     ← Add one incident to knowledge base
-  POST /api/v1/incidents/bulk       ← Add many incidents at once
-  GET  /api/v1/incidents/search     ← Search for similar incidents
-  GET  /api/v1/incidents/stats      ← How many incidents in the KB?
+incidents_router.py — Knowledge Base Routes (Updated: Step 3)
+==============================================================
+WHAT CHANGED FROM STEP 2:
+  - /ingest now calls REAL ChromaDB via rca_service
+  - /search now calls REAL ChromaDB vector search
+  - /stats now returns REAL ChromaDB count
+  - Added /seed endpoint to populate sample data for demos
 """
 
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 import logging
 
-from models.schemas import IncidentInput, IncidentSeverity
+from models.schemas import IncidentInput
+from services.rca_service import RCAService
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/incidents", tags=["Incidents - Knowledge Base"])
+rca_service = RCAService()
 
 
-# ============================================================
-# ROUTE 1: Add One Incident to Knowledge Base
-# ============================================================
-@router.post(
-    "/ingest",
-    summary="Add an incident to the RAG knowledge base",
-    description="""
-Add a resolved incident to ChromaDB so future RCA requests
-can find it as a similar past incident.
-
-**Best practice:** After every resolved incident, ingest it here
-so the AI gets smarter over time.
-    """
-)
+@router.post("/ingest", summary="Add incident to RAG knowledge base")
 async def ingest_incident(
     incident: IncidentInput,
+    incident_id: Optional[str] = Query(default=None),
     resolution: Optional[str] = None,
     root_cause: Optional[str] = None
 ):
-    """
-    Ingest a single incident into the ChromaDB knowledge base.
-    Optional: include the resolution and root cause for richer context.
-    """
-    logger.info(f"Ingesting incident: {incident.title}")
+    """Add a resolved incident to ChromaDB so future RCAs can reference it."""
+    import uuid
+    from datetime import datetime
+    iid = incident_id or f"INC-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
 
     try:
-        # We'll wire this to ChromaDB in Step 3
-        # For now, return a stub response
-        return {
-            "success": True,
-            "message": f"Incident '{incident.title}' added to knowledge base",
-            "note": "ChromaDB integration coming in Step 3"
-        }
-
+        success = await rca_service.ingest_incident(
+            incident_id=iid,
+            incident=incident,
+            root_cause=root_cause,
+            resolution=resolution
+        )
+        if success:
+            return {"success": True, "message": f"Incident '{incident.title}' added to knowledge base", "incident_id": iid}
+        else:
+            return {"success": False, "message": f"Incident {iid} already exists in knowledge base"}
     except Exception as e:
-        logger.error(f"Error ingesting incident: {str(e)}")
+        logger.error(f"Error ingesting incident: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============================================================
-# ROUTE 2: Bulk Ingest Many Incidents
-# ============================================================
-@router.post(
-    "/bulk",
-    summary="Add multiple incidents to the knowledge base at once"
-)
-async def bulk_ingest_incidents(incidents: List[IncidentInput]):
-    """
-    Add many incidents at once — useful for importing historical data.
-
-    Example: You have 100 past incidents in a JSON file.
-    POST them all here in one call.
-    """
+@router.post("/bulk", summary="Bulk add incidents to knowledge base")
+async def bulk_ingest(incidents: List[IncidentInput]):
     if len(incidents) > 100:
-        raise HTTPException(
-            status_code=400,
-            detail="Maximum 100 incidents per bulk upload. Split into batches."
-        )
+        raise HTTPException(status_code=400, detail="Max 100 per batch")
+    results = []
+    for i, incident in enumerate(incidents):
+        import uuid
+        from datetime import datetime
+        iid = f"INC-BULK-{i:04d}-{str(uuid.uuid4())[:6].upper()}"
+        try:
+            success = await rca_service.ingest_incident(incident_id=iid, incident=incident)
+            results.append({"incident_id": iid, "success": success})
+        except Exception as e:
+            results.append({"incident_id": iid, "success": False, "error": str(e)})
+    return {"success": True, "total": len(incidents), "results": results}
 
-    logger.info(f"Bulk ingesting {len(incidents)} incidents")
 
-    # Stub — will connect to ChromaDB in Step 3
-    return {
-        "success": True,
-        "message": f"{len(incidents)} incidents queued for ingestion",
-        "count": len(incidents)
-    }
-
-
-# ============================================================
-# ROUTE 3: Search Knowledge Base
-# ============================================================
-@router.get(
-    "/search",
-    summary="Search for similar incidents in the knowledge base"
-)
+@router.get("/search", summary="Semantic search in knowledge base")
 async def search_incidents(
-    query: str = Query(..., min_length=5, description="Search query text"),
-    top_k: int = Query(default=5, ge=1, le=20, description="Number of results to return")
+    query: str = Query(..., min_length=5, description="Search query"),
+    top_k: int = Query(default=5, ge=1, le=20)
 ):
-    """
-    Semantic search through the knowledge base.
-    Returns incidents most similar to the query text.
-
-    This uses ChromaDB vector search — not keyword search.
-    That means it finds incidents that are CONCEPTUALLY similar,
-    even if they use different words.
-    """
-    logger.info(f"Searching knowledge base: '{query}', top_k={top_k}")
-
-    # Stub — will connect to ChromaDB in Step 3
-    return {
-        "success": True,
-        "query": query,
-        "results": [],
-        "note": "ChromaDB search coming in Step 3"
-    }
+    """Real ChromaDB vector search — finds semantically similar incidents."""
+    try:
+        results = await rca_service.search_similar(query=query, top_k=top_k)
+        return {"success": True, "query": query, "count": len(results), "results": results}
+    except Exception as e:
+        logger.error(f"Search error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============================================================
-# ROUTE 4: Knowledge Base Stats
-# ============================================================
-@router.get(
-    "/stats",
-    summary="Get knowledge base statistics"
-)
-async def get_knowledge_base_stats():
+@router.get("/stats", summary="Knowledge base statistics")
+async def get_stats():
+    """Returns how many incidents are stored in ChromaDB."""
+    try:
+        stats = await rca_service.get_knowledge_base_stats()
+        return {"success": True, **stats}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/seed", summary="Seed sample incidents for demo/testing")
+async def seed_knowledge_base():
     """
-    Returns statistics about what's in the knowledge base.
-    Useful for monitoring how much data the AI has to work with.
+    Populates ChromaDB with 5 sample historical incidents.
+    Run this once to give the AI something to search against.
+    Great for demos and interviews!
     """
-    # Stub — will connect to ChromaDB in Step 3
-    return {
-        "success": True,
-        "total_incidents": 0,
-        "by_severity": {
-            "P1": 0, "P2": 0, "P3": 0, "P4": 0
-        },
-        "note": "ChromaDB stats coming in Step 3"
-    }
+    try:
+        count = await rca_service.seed_knowledge_base()
+        return {
+            "success": True,
+            "message": f"Seeded {count} sample incidents into ChromaDB",
+            "tip": "Now try POST /api/v1/rca/analyze — the AI will find similar incidents!"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
