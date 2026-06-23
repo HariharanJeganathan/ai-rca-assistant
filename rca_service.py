@@ -1,73 +1,46 @@
 """
-rca_service.py — Business Logic Layer
-=======================================
-The SERVICE LAYER sits between the API routes and the AI agent.
-
-Think of it like a restaurant:
-  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-  │   Routes    │────▶│   Service   │────▶│  AI Agent   │
-  │ (Waiter)    │     │  (Kitchen   │     │  (Chef)     │
-  │             │     │   Manager)  │     │             │
-  └─────────────┘     └─────────────┘     └─────────────┘
-
-Why this pattern?
-  ✅ Routes stay thin — just receive/send HTTP requests
-  ✅ All business logic is in one place (easy to change)
-  ✅ AI agent focuses only on reasoning (not HTTP stuff)
-  ✅ Easy to test each layer independently
-  ✅ Senior engineers always use this pattern — interviewers notice
-
-This is called the "Service Layer Pattern" or "Repository Pattern".
+rca_service.py — Business Logic Layer (Updated: Step 3 — ChromaDB wired in)
+=============================================================================
+WHAT CHANGED FROM STEP 2:
+  - _find_similar_incidents() now calls REAL ChromaDB search
+  - Added ingest_incident() to add incidents to the knowledge base
+  - Added get_knowledge_base_stats() for the /stats endpoint
+  - Retriever is injected via get_retriever()
 """
 
 import logging
 import io
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict, Any
 from datetime import datetime
 
-from models.schemas import (
-    IncidentInput,
-    RCAReport,
-    RCAAnalysis,
-    RCAStatus,
-)
+from models.schemas import IncidentInput, RCAReport, RCAAnalysis, RCAStatus
+from rag.retriever import get_retriever, IncidentRetriever
 
 logger = logging.getLogger(__name__)
 
 
 class RCAService:
     """
-    Service class that orchestrates:
-      1. Text extraction (from PDF/TXT files)
-      2. RAG search (find similar incidents in ChromaDB)
-      3. AI analysis (run LangGraph agent)
-      4. Database operations (save/fetch reports from PostgreSQL)
-
-    Each method maps to one business operation.
-    In Steps 3-5, we'll wire each method to its real implementation.
-    Right now, they return stub data so the API actually works end-to-end.
+    Orchestrates the full RCA pipeline:
+      1. Text extraction (PDF/TXT files)
+      2. RAG search (ChromaDB) ← NOW REAL in Step 3
+      3. AI analysis (LangGraph) ← Coming in Step 4
+      4. Database storage (PostgreSQL) ← Coming in Step 5
     """
 
     def __init__(self):
-        """
-        Initialize service.
-        In later steps we'll inject:
-          - ChromaDB retriever
-          - LangGraph agent
-          - PostgreSQL connection
-        """
-        logger.info("[RCAService] Initialized (stub mode — AI coming in Steps 3-4)")
-
-        # These will be real objects after Steps 3-5
-        self.retriever = None    # ChromaDB (Step 3)
-        self.agent = None        # LangGraph Agent (Step 4)
-        self.db = None           # PostgreSQL (Step 5)
-
-        # In-memory store for now (replaced by PostgreSQL in Step 5)
         self._reports_store: dict = {}
+        self._retriever: Optional[IncidentRetriever] = None
+        logger.info("[RCAService] Initialized")
+
+    def _get_retriever(self) -> IncidentRetriever:
+        """Get the ChromaDB retriever (lazy loaded)."""
+        if self._retriever is None:
+            self._retriever = get_retriever()
+        return self._retriever
 
     # ============================================================
-    # 1. ANALYZE INCIDENT — Main orchestration method
+    # 1. ANALYZE INCIDENT
     # ============================================================
     async def analyze_incident(
         self,
@@ -75,22 +48,9 @@ class RCAService:
         incident: IncidentInput,
         llm_provider_override: Optional[str] = None
     ) -> RCAReport:
-        """
-        Main method — orchestrates the full RCA pipeline.
+        """Full RCA pipeline orchestration."""
+        logger.info(f"[RCAService] Starting analysis: {incident_id}")
 
-        Steps:
-          1. Save incident as PENDING
-          2. Search ChromaDB for similar incidents (RAG)
-          3. Run LangGraph agent to generate RCA
-          4. Save completed report to PostgreSQL
-          5. Return the report
-
-        Currently returns stub data.
-        Will be fully wired in Steps 3 and 4.
-        """
-        logger.info(f"[RCAService] Starting analysis for {incident_id}")
-
-        # Step 1: Create initial report record
         report = RCAReport(
             incident_id=incident_id,
             status=RCAStatus.ANALYZING,
@@ -99,136 +59,174 @@ class RCAService:
             updated_at=datetime.utcnow(),
             llm_provider_used=llm_provider_override or "groq"
         )
-
-        # Save to in-memory store (PostgreSQL in Step 5)
         self._reports_store[incident_id] = report
 
         try:
-            # Step 2: RAG — search for similar past incidents
-            # (ChromaDB integration coming in Step 3)
+            # Step 3: REAL ChromaDB search
             similar_incidents = await self._find_similar_incidents(incident)
 
-            # Step 3: Run AI agent
-            # (LangGraph agent coming in Step 4)
+            # Step 4: AI agent (stub — becomes real in Step 4)
             analysis = await self._run_rca_agent(incident, similar_incidents)
 
-            # Step 4: Update report with completed analysis
             report.analysis = analysis
             report.status = RCAStatus.COMPLETED
             report.completed_at = datetime.utcnow()
             report.updated_at = datetime.utcnow()
-
-            # Save updated report
             self._reports_store[incident_id] = report
 
-            logger.info(f"[RCAService] Analysis complete for {incident_id}")
+            logger.info(f"[RCAService] Analysis complete: {incident_id}")
             return report
 
         except Exception as e:
-            # If anything fails, mark as FAILED
             report.status = RCAStatus.FAILED
             report.updated_at = datetime.utcnow()
             self._reports_store[incident_id] = report
-            logger.error(f"[RCAService] Analysis failed for {incident_id}: {e}")
+            logger.error(f"[RCAService] Analysis failed {incident_id}: {e}")
             raise
 
     # ============================================================
-    # 2. FIND SIMILAR INCIDENTS (RAG Stub)
+    # 2. FIND SIMILAR INCIDENTS — NOW REAL (Step 3)
     # ============================================================
     async def _find_similar_incidents(
         self,
         incident: IncidentInput
-    ) -> List[str]:
+    ) -> List[Dict[str, Any]]:
         """
-        Search ChromaDB for incidents similar to this one.
-        Returns a list of similar incident descriptions.
-
-        STUB: Returns empty list for now.
-        Will be wired to ChromaDB in Step 3.
+        Search ChromaDB for similar past incidents.
+        REAL implementation — was a stub in Step 2.
         """
-        logger.info("[RCAService] Searching for similar incidents (stub)")
+        logger.info("[RCAService] Searching ChromaDB for similar incidents...")
 
-        # Step 3 will replace this with:
-        # return await self.retriever.search(incident.description, top_k=3)
-        return []
+        # Build search query from incident details
+        search_query = f"{incident.title}. {incident.description}"
+        if incident.affected_systems:
+            search_query += f" Systems: {', '.join(incident.affected_systems)}"
+
+        retriever = self._get_retriever()
+
+        results = await retriever.search(
+            query=search_query,
+            top_k=3,
+            min_relevance=0.3
+        )
+
+        if results:
+            logger.info(f"[RCAService] Found {len(results)} similar incidents in ChromaDB")
+            for r in results:
+                logger.info(f"  → {r['incident_id']} (similarity: {r['similarity_score']})")
+        else:
+            logger.info("[RCAService] No similar incidents found in ChromaDB")
+
+        return results
 
     # ============================================================
-    # 3. RUN RCA AGENT (AI Stub)
+    # 3. RUN RCA AGENT (stub — real in Step 4)
     # ============================================================
     async def _run_rca_agent(
         self,
         incident: IncidentInput,
-        similar_incidents: List[str]
+        similar_incidents: List[Dict[str, Any]]
     ) -> RCAAnalysis:
         """
-        Run the LangGraph agent to generate the RCA.
-
-        STUB: Returns a structured placeholder analysis.
-        Will be replaced with real LangGraph agent in Step 4.
+        Run LangGraph agent to generate RCA.
+        STUB — will be replaced with real agent in Step 4.
+        Now passes similar_incidents context to the stub output.
         """
-        logger.info("[RCAService] Running RCA agent (stub mode)")
+        logger.info("[RCAService] Running RCA agent (Step 4 will make this real)")
 
-        # Build context string from similar incidents
-        similar_context = ""
-        if similar_incidents:
-            similar_context = "\n".join([f"- {s}" for s in similar_incidents])
+        # Format similar incidents for display
+        similar_summaries = []
+        for s in similar_incidents:
+            similar_summaries.append(
+                f"[{s['incident_id']}] {s['title']} "
+                f"(similarity: {s['similarity_score']:.0%})"
+            )
 
-        # Stub analysis — real AI output in Step 4
-        stub_analysis = RCAAnalysis(
+        return RCAAnalysis(
             incident_summary=(
                 f"Incident: {incident.title}. "
-                f"Affected systems: {', '.join(incident.affected_systems) if incident.affected_systems else 'Not specified'}. "
-                f"Severity: {incident.severity.value}."
+                f"Severity: {incident.severity.value}. "
+                f"Affected: {', '.join(incident.affected_systems) if incident.affected_systems else 'N/A'}."
             ),
             timeline_reconstruction=(
                 incident.incident_timeline or
-                "Timeline not provided. Please add incident timeline for better analysis."
+                "No timeline provided. Add timeline for better analysis."
             ),
             root_cause=(
-                "⚠️ STUB: LangGraph AI agent will be connected in Step 4. "
-                "Root cause analysis will appear here after the agent is wired up."
+                "⚠️ STUB: LangGraph AI agent will be wired in Step 4. "
+                "Real root cause analysis will appear here."
             ),
             contributing_factors=[
-                "STUB: Factor 1 will be identified by AI agent",
-                "STUB: Factor 2 will be identified by AI agent"
+                "STUB: Contributing factors will be identified by AI in Step 4"
             ],
             impact_assessment=(
-                f"Severity {incident.severity.value} incident affecting: "
-                f"{', '.join(incident.affected_systems) if incident.affected_systems else 'systems not specified'}."
+                f"Severity {incident.severity.value} incident. "
+                f"Affected systems: {', '.join(incident.affected_systems) if incident.affected_systems else 'N/A'}."
             ),
-            immediate_actions_taken=[
-                "STUB: Immediate actions will be extracted by AI agent"
-            ],
-            corrective_actions=[
-                "STUB: Corrective actions will be generated by AI agent in Step 4"
-            ],
-            preventive_measures=[
-                "STUB: Preventive measures will be generated by AI agent in Step 4"
-            ],
-            lessons_learned=(
-                "STUB: Lessons learned will be generated by AI agent in Step 4. "
-                f"Context: {incident.additional_context or 'No additional context provided.'}"
-            ),
-            similar_incidents=similar_incidents,
-            confidence_score=0.0  # Will be real after Step 4
+            immediate_actions_taken=["STUB: Actions will be extracted by AI in Step 4"],
+            corrective_actions=["STUB: Will be generated by AI in Step 4"],
+            preventive_measures=["STUB: Will be generated by AI in Step 4"],
+            lessons_learned="STUB: Will be generated by AI in Step 4.",
+            similar_incidents=similar_summaries,
+            confidence_score=0.0
         )
 
-        return stub_analysis
+    # ============================================================
+    # 4. INGEST INCIDENT TO KNOWLEDGE BASE (NEW in Step 3)
+    # ============================================================
+    async def ingest_incident(
+        self,
+        incident_id: str,
+        incident: IncidentInput,
+        root_cause: Optional[str] = None,
+        resolution: Optional[str] = None
+    ) -> bool:
+        """Add a resolved incident to ChromaDB knowledge base."""
+        retriever = self._get_retriever()
+        return await retriever.ingest(
+            incident_id=incident_id,
+            title=incident.title,
+            description=incident.description,
+            severity=incident.severity.value,
+            affected_systems=incident.affected_systems,
+            root_cause=root_cause,
+            resolution=resolution
+        )
 
     # ============================================================
-    # 4. GET ONE REPORT
+    # 5. KNOWLEDGE BASE STATS (NEW in Step 3)
+    # ============================================================
+    async def get_knowledge_base_stats(self) -> Dict[str, Any]:
+        """Return ChromaDB knowledge base statistics."""
+        retriever = self._get_retriever()
+        return await retriever.get_stats()
+
+    # ============================================================
+    # 6. SEARCH KNOWLEDGE BASE (NEW in Step 3)
+    # ============================================================
+    async def search_similar(
+        self,
+        query: str,
+        top_k: int = 5
+    ) -> List[Dict[str, Any]]:
+        """Public method to search the knowledge base."""
+        retriever = self._get_retriever()
+        return await retriever.search(query=query, top_k=top_k)
+
+    # ============================================================
+    # 7. SEED SAMPLE DATA (NEW in Step 3)
+    # ============================================================
+    async def seed_knowledge_base(self) -> int:
+        """Seed the knowledge base with sample incidents for demos."""
+        retriever = self._get_retriever()
+        return await retriever.seed_sample_incidents()
+
+    # ============================================================
+    # 8-10. GET / LIST / DELETE REPORTS
     # ============================================================
     async def get_report(self, incident_id: str) -> Optional[RCAReport]:
-        """
-        Fetch one RCA report by incident ID.
-        Looks in in-memory store (PostgreSQL in Step 5).
-        """
-        logger.info(f"[RCAService] Getting report: {incident_id}")
         return self._reports_store.get(incident_id)
 
-    # ============================================================
-    # 5. LIST REPORTS
-    # ============================================================
     async def list_reports(
         self,
         skip: int = 0,
@@ -236,44 +234,22 @@ class RCAService:
         status_filter: Optional[str] = None,
         severity_filter: Optional[str] = None
     ) -> Tuple[List[RCAReport], int]:
-        """
-        List reports with optional filtering and pagination.
-        Returns (list_of_reports, total_count).
-        """
-        logger.info(f"[RCAService] Listing reports: skip={skip}, limit={limit}")
-
         reports = list(self._reports_store.values())
-
-        # Apply filters
         if status_filter:
             reports = [r for r in reports if r.status.value == status_filter]
-
         if severity_filter:
             reports = [r for r in reports if r.incident.severity.value == severity_filter]
-
         total = len(reports)
+        return reports[skip: skip + limit], total
 
-        # Apply pagination
-        paginated = reports[skip: skip + limit]
-
-        return paginated, total
-
-    # ============================================================
-    # 6. DELETE REPORT
-    # ============================================================
     async def delete_report(self, incident_id: str) -> bool:
-        """
-        Delete a report by incident ID.
-        Returns True if deleted, False if not found.
-        """
         if incident_id in self._reports_store:
             del self._reports_store[incident_id]
-            logger.info(f"[RCAService] Deleted report: {incident_id}")
             return True
         return False
 
     # ============================================================
-    # 7. EXTRACT TEXT FROM FILE
+    # 11. EXTRACT TEXT FROM FILE
     # ============================================================
     async def extract_text_from_file(
         self,
@@ -281,43 +257,24 @@ class RCAService:
         filename: str,
         file_extension: str
     ) -> str:
-        """
-        Extract text from uploaded PDF or TXT files.
-
-        For .txt files → decode bytes to string directly
-        For .pdf files → use pypdf to extract text from pages
-        """
-        logger.info(f"[RCAService] Extracting text from: {filename}")
-
         if file_extension in [".txt", ".text"]:
-            # Simple text file — just decode bytes
             try:
                 return content.decode("utf-8")
             except UnicodeDecodeError:
                 return content.decode("latin-1")
-
         elif file_extension == ".pdf":
             try:
                 import pypdf
-
-                # Read PDF from bytes using BytesIO
-                # (BytesIO lets us treat bytes like a file object)
                 pdf_reader = pypdf.PdfReader(io.BytesIO(content))
-
-                # Extract text from all pages
                 text_parts = []
-                for page_num, page in enumerate(pdf_reader.pages):
-                    page_text = page.extract_text()
-                    if page_text:
-                        text_parts.append(f"[Page {page_num + 1}]\n{page_text}")
-
+                for i, page in enumerate(pdf_reader.pages):
+                    text = page.extract_text()
+                    if text:
+                        text_parts.append(f"[Page {i+1}]\n{text}")
                 if not text_parts:
-                    raise ValueError("No text could be extracted from PDF. It may be a scanned image PDF.")
-
+                    raise ValueError("No text could be extracted from PDF.")
                 return "\n\n".join(text_parts)
-
             except ImportError:
                 raise RuntimeError("pypdf not installed. Run: pip install pypdf")
-
         else:
             raise ValueError(f"Unsupported file type: {file_extension}")
