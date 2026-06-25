@@ -321,3 +321,36 @@ async def delete_rca_report(incident_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Excel Parse Endpoint (Step 6b) ────────────────────────
+@router.post("/parse-excel", summary="Parse FedEx MI Excel file")
+async def parse_excel_file(
+    file: UploadFile = File(..., description="FedEx MI Excel (.xlsx)")
+):
+    """
+    Parse a FedEx Major Incident Excel sheet.
+    Extracts all incident fields automatically based on the FedEx MI format.
+    Returns structured data that can be sent directly to /analyze.
+    """
+    if not file.filename.lower().endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="Only .xlsx files supported")
+
+    content = await file.read()
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Max 20MB.")
+
+    try:
+        from services.fedex_excel_parser import FedExMIParser
+        parser = FedExMIParser()
+        parsed = parser.parse(content)
+        return {
+            "success": True,
+            "filename": file.filename,
+            "parsed": parsed,
+            "incident_number": parsed.get("incident_number"),
+            "message": f"Successfully parsed {parsed.get('incident_number','incident')}"
+        }
+    except Exception as e:
+        logger.error(f"Excel parse error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to parse Excel: {str(e)}")
