@@ -1,11 +1,11 @@
 """
 rca_service.py — Business Logic Layer
-(Updated: Step 4 — LangGraph agent wired in)
+(Updated: Step 5 — PostgreSQL wired in)
 
-WHAT CHANGED FROM STEP 3:
-  - _run_rca_agent() now calls the REAL LangGraph agent
-  - Imports get_rca_agent from agents/rca_agent.py
-  - Everything else stays the same
+WHAT CHANGED FROM STEP 4:
+  - _reports_store (in-memory dict) REPLACED by PostgreSQL
+  - All CRUD methods now use RCARepository
+  - DB session injected via get_db dependency
 """
 
 import logging
@@ -13,8 +13,12 @@ import io
 from typing import Optional, List, Tuple, Dict, Any
 from datetime import datetime
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from models.schemas import IncidentInput, RCAReport, RCAAnalysis, RCAStatus
 from rag.retriever import get_retriever, IncidentRetriever
+from db.postgres import RCARepository
+from db.database import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +26,9 @@ logger = logging.getLogger(__name__)
 class RCAService:
 
     def __init__(self):
-        self._reports_store: dict = {}
         self._retriever: Optional[IncidentRetriever] = None
         self._agent = None
-        logger.info("[RCAService] Initialized")
+        logger.info("[RCAService] Initialized with PostgreSQL backend")
 
     def _get_retriever(self) -> IncidentRetriever:
         if self._retriever is None:
@@ -33,14 +36,19 @@ class RCAService:
         return self._retriever
 
     def _get_agent(self):
-        """Get the LangGraph agent (lazy loaded)."""
         if self._agent is None:
             from agents.rca_agent import get_rca_agent
             self._agent = get_rca_agent()
         return self._agent
 
+    async def _get_repo(self) -> Tuple[RCARepository, AsyncSession]:
+        """Get a repository + session pair."""
+        session = AsyncSessionLocal()
+        repo = RCARepository(session)
+        return repo, session
+
     # ============================================================
-    # 1. ANALYZE INCIDENT
+    # 1. ANALYZE INCIDENT — Full pipeline
     # ============================================================
     async def analyze_incident(
         self,
@@ -58,36 +66,55 @@ class RCAService:
             updated_at=datetime.utcnow(),
             llm_provider_used=llm_provider_override or "groq"
         )
-        self._reports_store[incident_id] = report
+
+        # Save initial ANALYZING state to PostgreSQL
+        async with AsyncSessionLocal() as session:
+            repo = RCARepository(session)
+            try:
+                await repo.create_report(report)
+                await session.commit()
+            except ValueError:
+                pass  # Already exists, continue
 
         try:
-            # Step 3: ChromaDB RAG search
+            # ChromaDB RAG search
             similar_incidents = await self._find_similar_incidents(incident)
 
-            # Step 4: REAL LangGraph agent
+            # LangGraph agent
             analysis = await self._run_rca_agent(incident, similar_incidents)
 
+            # Update report with completed analysis
             report.analysis = analysis
             report.status = RCAStatus.COMPLETED
             report.completed_at = datetime.utcnow()
             report.updated_at = datetime.utcnow()
-            self._reports_store[incident_id] = report
+
+            # Save completed report to PostgreSQL
+            async with AsyncSessionLocal() as session:
+                repo = RCARepository(session)
+                updated = await repo.update_report(report)
+                await session.commit()
+                if updated:
+                    report = updated
 
             logger.info(f"[RCAService] Analysis complete: {incident_id}")
             return report
 
         except Exception as e:
+            # Mark as FAILED in PostgreSQL
             report.status = RCAStatus.FAILED
             report.updated_at = datetime.utcnow()
-            self._reports_store[incident_id] = report
-            logger.error(f"[RCAService] Failed {incident_id}: {e}")
+            async with AsyncSessionLocal() as session:
+                repo = RCARepository(session)
+                await repo.update_report(report)
+                await session.commit()
+            logger.error(f"[RCAService] Failed: {incident_id}: {e}")
             raise
 
     # ============================================================
     # 2. FIND SIMILAR INCIDENTS (ChromaDB)
     # ============================================================
     async def _find_similar_incidents(self, incident: IncidentInput) -> List[Dict]:
-        logger.info("[RCAService] Searching ChromaDB...")
         query = f"{incident.title}. {incident.description}"
         if incident.affected_systems:
             query += f" Systems: {', '.join(incident.affected_systems)}"
@@ -97,29 +124,66 @@ class RCAService:
         return results
 
     # ============================================================
-    # 3. RUN RCA AGENT — NOW REAL (Step 4)
+    # 3. RUN RCA AGENT (LangGraph)
     # ============================================================
-    async def _run_rca_agent(
-        self,
-        incident: IncidentInput,
-        similar_incidents: List[Dict]
-    ) -> RCAAnalysis:
-        """
-        Run the REAL LangGraph 7-step agent.
-        Was a stub in Steps 2 and 3. Now fully wired.
-        """
-        logger.info("[RCAService] Running LangGraph agent (7 steps)...")
+    async def _run_rca_agent(self, incident, similar_incidents) -> RCAAnalysis:
+        logger.info("[RCAService] Running LangGraph agent...")
         agent = self._get_agent()
         analysis = await agent.run(
             incident=incident,
             incident_id=f"run-{datetime.utcnow().timestamp()}",
             similar_incidents=similar_incidents
         )
-        logger.info(f"[RCAService] Agent complete. Confidence: {analysis.confidence_score:.0%}")
+        logger.info(f"[RCAService] Agent done. Confidence: {analysis.confidence_score:.0%}")
         return analysis
 
     # ============================================================
-    # 4-10. Knowledge base + CRUD (unchanged from Step 3)
+    # 4. GET ONE REPORT — from PostgreSQL
+    # ============================================================
+    async def get_report(self, incident_id: str) -> Optional[RCAReport]:
+        async with AsyncSessionLocal() as session:
+            repo = RCARepository(session)
+            return await repo.get_report(incident_id)
+
+    # ============================================================
+    # 5. LIST REPORTS — from PostgreSQL
+    # ============================================================
+    async def list_reports(
+        self,
+        skip: int = 0,
+        limit: int = 10,
+        status_filter: Optional[str] = None,
+        severity_filter: Optional[str] = None
+    ) -> Tuple[List[RCAReport], int]:
+        async with AsyncSessionLocal() as session:
+            repo = RCARepository(session)
+            return await repo.list_reports(
+                skip=skip,
+                limit=limit,
+                status_filter=status_filter,
+                severity_filter=severity_filter
+            )
+
+    # ============================================================
+    # 6. DELETE REPORT — soft delete in PostgreSQL
+    # ============================================================
+    async def delete_report(self, incident_id: str) -> bool:
+        async with AsyncSessionLocal() as session:
+            repo = RCARepository(session)
+            result = await repo.delete_report(incident_id)
+            await session.commit()
+            return result
+
+    # ============================================================
+    # 7. GET DB STATS
+    # ============================================================
+    async def get_report_stats(self) -> Dict[str, Any]:
+        async with AsyncSessionLocal() as session:
+            repo = RCARepository(session)
+            return await repo.get_stats()
+
+    # ============================================================
+    # 8-10. Knowledge base operations (ChromaDB — unchanged)
     # ============================================================
     async def ingest_incident(self, incident_id, incident, root_cause=None, resolution=None):
         retriever = self._get_retriever()
@@ -142,24 +206,9 @@ class RCAService:
     async def seed_knowledge_base(self):
         return await self._get_retriever().seed_sample_incidents()
 
-    async def get_report(self, incident_id):
-        return self._reports_store.get(incident_id)
-
-    async def list_reports(self, skip=0, limit=10, status_filter=None, severity_filter=None):
-        reports = list(self._reports_store.values())
-        if status_filter:
-            reports = [r for r in reports if r.status.value == status_filter]
-        if severity_filter:
-            reports = [r for r in reports if r.incident.severity.value == severity_filter]
-        total = len(reports)
-        return reports[skip: skip + limit], total
-
-    async def delete_report(self, incident_id):
-        if incident_id in self._reports_store:
-            del self._reports_store[incident_id]
-            return True
-        return False
-
+    # ============================================================
+    # 11. EXTRACT TEXT FROM FILE
+    # ============================================================
     async def extract_text_from_file(self, content, filename, file_extension):
         if file_extension in [".txt", ".text"]:
             try:
