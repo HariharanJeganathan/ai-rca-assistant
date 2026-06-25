@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI RCA Assistant</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    /* ── TOKENS ───────────────────────────────────────────── */
+    :root {
+      --bg:        #0d0f14;
+      --surface:   #141720;
+      --border:    #1e2330;
+      --border-hi: #2a3045;
+      --text:      #c8cdd8;
+      --text-dim:  #5a6176;
+      --text-hi:   #eef0f5;
+      --accent:    #4f8ef7;
+      --accent-lo: rgba(79,142,247,.12);
+      --green:     #2dd4a0;
+      --green-lo:  rgba(45,212,160,.12);
+      --amber:     #f5a623;
+      --amber-lo:  rgba(245,166,35,.1);
+      --red:       #f25757;
+      --red-lo:    rgba(242,87,87,.1);
+      --p1:        #f25757;
+      --p2:        #f5a623;
+      --p3:        #4f8ef7;
+      --p4:        #2dd4a0;
+      --radius:    6px;
+      --mono:      'IBM Plex Mono', monospace;
+      --sans:      'Inter', sans-serif;
+    }
+
+    /* ── RESET ────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 14px; }
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ── LAYOUT ───────────────────────────────────────────── */
+    .shell {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      grid-template-rows: 52px 1fr;
+      min-height: 100vh;
+    }
+
+    /* ── TOP BAR ──────────────────────────────────────────── */
+    .topbar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar-logo {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-hi);
+      letter-spacing: .5px;
+    }
+    .topbar-logo span { color: var(--accent); }
+    .topbar-status {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--text-dim);
+    }
+    .dot.ok  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .dot.err { background: var(--red); }
+    .status-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    /* ── SIDEBAR ──────────────────────────────────────────── */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 16px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow-y: auto;
+    }
+    .nav-section {
+      padding: 16px 16px 6px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      cursor: pointer;
+      border-radius: 0;
+      color: var(--text-dim);
+      font-size: 13px;
+      font-weight: 400;
+      transition: color .15s, background .15s;
+      border-left: 2px solid transparent;
+    }
+    .nav-item:hover { color: var(--text); background: var(--accent-lo); }
+    .nav-item.active {
+      color: var(--accent);
+      background: var(--accent-lo);
+      border-left-color: var(--accent);
+    }
+    .nav-icon { font-size: 14px; width: 18px; text-align: center; }
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .seed-btn {
+      width: 100%;
+      padding: 8px 12px;
+      background: var(--green-lo);
+      border: 1px solid rgba(45,212,160,.25);
+      color: var(--green);
+      border-radius: var(--radius);
+      font-family: var(--mono);
+      font-size: 11px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .seed-btn:hover { background: rgba(45,212,160,.2); }
+
+    /* ── MAIN CONTENT ─────────────────────────────────────── */
+    .main {
+      overflow-y: auto;
+      padding: 28px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    /* ── PAGE HEADER ──────────────────────────────────────── */
+    .page-header {
+      margin-bottom: 24px;
+    }
+    .page-eyebrow {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--accent);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .page-title {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text-hi);
+      letter-spacing: -.3px;
+    }
+    .page-sub {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    /* ── VIEWS ────────────────────────────────────────────── */
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* ── CARD ─────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: .8px;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    /* ── FORM ─────────────────────────────────────────────── */
+    .form-grid { display: grid; gap: 14px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    label span { color: var(--red); margin-left: 2px; }
+    input, textarea, select {
+      width: 100%;
+      padding: 9px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 13px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--accent);
+    }
+    textarea { min-height: 90px; resize: vertical; }
+    select option { background: var(--surface); }
+
+    /* ── SEVERITY PILLS ───────────────────────────────────── */
+    .severity-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .severity-pill {
+      padding: 6px 16px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 11px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .severity-pill[data-sev="P1"]:hover,
+    .severity-pill[data-sev="P1"].selected {
+      background: rgba(242,87,87,.15);
+      border-color: var(--p1);
+      color: var(--p1);
+    }
+    .severity-pill[data-sev="P2"]:hover,
+    .severity-pill[data-sev="P2"].selected {
+      background: rgba(245,166,35,.15);
+      border-color: var(--p2);
+      color: var(--p2);
+    }
+    .severity-pill[data-sev="P3"]:hover,
+    .severity-pill[data-sev="P3"].selected {
+      background: rgba(79,142,247,.15);
+      border-color: var(--p3);
+      color: var(--p3);
+    }
+    .severity-pill[data-sev="P4"]:hover,
+    .severity-pill[data-sev="P4"].selected {
+      background: rgba(45,212,160,.15);
+      border-color: var(--p4);
+      color: var(--p4);
+    }
+
+    /* ── BUTTONS ──────────────────────────────────────────── */
+    .btn {
+      padding: 9px 20px;
+      border-radius: var(--radius);
+      border: none;
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover { opacity: .88; }
+    .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { border-color: var(--border-hi); color: var(--text); }
+
+    /* ── LOADER ───────────────────────────────────────────── */
+    .loader-wrap {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding: 40px;
+      text-align: center;
+    }
+    .loader-wrap.show { display: flex; }
+    .loader-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+      max-width: 340px;
+      text-align: left;
+    }
+    .loader-step {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-dim);
+      opacity: .4;
+      transition: opacity .4s;
+    }
+    .loader-step.running { opacity: 1; color: var(--accent); }
+    .loader-step.done    { opacity: 1; color: var(--green); }
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid var(--border-hi);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      flex-shrink: 0;
+    }
+    .loader-step.done .spinner {
+      border-color: var(--green);
+      border-top-color: var(--green);
+      animation: none;
+    }
+    .loader-step.done .spinner::after { content: '✓'; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+    }
+
+    /* ── RCA REPORT DISPLAY ───────────────────────────────── */
+    .report-wrap { display: none; }
+    .report-wrap.show { display: block; }
+
+    .report-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .report-id {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .report-id strong { color: var(--accent); }
+
+    .sev-badge {
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .sev-P1 { background: rgba(242,87,87,.15); color: var(--p1); }
+    .sev-P2 { background: rgba(245,166,35,.15); color: var(--p2); }
+    .sev-P3 { background: rgba(79,142,247,.15); color: var(--p3); }
+    .sev-P4 { background: rgba(45,212,160,.15); color: var(--p4); }
+
+    .section-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--accent);
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .section-text {
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text);
+    }
+    .section-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 18px 0;
+    }
+
+    .action-list {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    .action-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .action-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      margin-top: 6px;
+      flex-shrink: 0;
+    }
+    .dot-green { background: var(--green); }
+    .dot-amber { background: var(--amber); }
+    .dot-accent { background: var(--accent); }
+
+    .confidence-bar {
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin-top: 6px;
+      overflow: hidden;
+    }
+    .confidence-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--green));
+      border-radius: 2px;
+      transition: width .8s ease;
+    }
+
+    .similar-chip {
+      display: inline-block;
+      padding: 3px 10px;
+      background: var(--accent-lo);
+      border: 1px solid rgba(79,142,247,.2);
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      margin: 3px 3px 3px 0;
+    }
+
+    /* ── REPORTS LIST ─────────────────────────────────────── */
+    .reports-list { display: flex; flex-direction: column; gap: 10px; }
+    .report-row {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      cursor: pointer;
+      transition: border-color .15s;
+    }
+    .report-row:hover { border-color: var(--border-hi); }
+    .report-row-id {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      min-width: 160px;
+    }
+    .report-row-title {
+      font-size: 13px;
+      color: var(--text);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .report-row-time {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+    .status-pill {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 10px;
+      white-space: nowrap;
+    }
+    .status-completed { background: var(--green-lo); color: var(--green); }
+    .status-analyzing { background: var(--accent-lo); color: var(--accent); }
+    .status-failed    { background: var(--red-lo);   color: var(--red); }
+    .status-pending   { background: var(--amber-lo); color: var(--amber); }
+
+    /* ── SEARCH ───────────────────────────────────────────── */
+    .search-result {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      margin-bottom: 10px;
+    }
+    .search-result-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-hi);
+      margin-bottom: 4px;
+    }
+    .search-result-meta {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .similarity-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .sim-track {
+      flex: 1;
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .sim-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+    .sim-pct { font-family: var(--mono); font-size: 10px; color: var(--accent); }
+
+    /* ── EMPTY STATE ──────────────────────────────────────── */
+    .empty {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+    .empty-icon { font-size: 28px; margin-bottom: 10px; }
+
+    /* ── TOAST ────────────────────────────────────────────── */
+    .toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 1000;
+    }
+    .toast {
+      padding: 10px 16px;
+      border-radius: var(--radius);
+      font-size: 12px;
+      font-family: var(--mono);
+      animation: slideIn .2s ease;
+      max-width: 320px;
+    }
+    .toast-success { background: var(--green-lo); border: 1px solid rgba(45,212,160,.3); color: var(--green); }
+    .toast-error   { background: var(--red-lo);   border: 1px solid rgba(242,87,87,.3);  color: var(--red); }
+    .toast-info    { background: var(--accent-lo); border: 1px solid rgba(79,142,247,.3); color: var(--accent); }
+    @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } }
+
+    /* ── FILE UPLOAD ZONE ─────────────────────────────────── */
+    .drop-zone {
+      border: 1px dashed var(--border-hi);
+      border-radius: var(--radius);
+      padding: 28px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .drop-zone:hover, .drop-zone.over {
+      border-color: var(--accent);
+      background: var(--accent-lo);
+    }
+    .drop-icon { font-size: 24px; margin-bottom: 8px; }
+    .drop-text { font-size: 13px; color: var(--text-dim); }
+    .drop-text strong { color: var(--text); }
+
+    /* ── STATS GRID ───────────────────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .stat-value {
+      font-family: var(--mono);
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--text-hi);
+      line-height: 1;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 5px;
+    }
+
+    @media (max-width: 768px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="topbar-logo">RCA<span>.</span>AI</div>
+    <span style="color:var(--border-hi); font-size:18px">|</span>
+    <span style="font-size:12px; color:var(--text-dim)">Incident Root Cause Analysis</span>
+    <div class="topbar-status">
+      <div class="dot" id="dot-api"></div>
+      <span class="status-label" id="status-label">Connecting...</span>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="nav-section">Workspace</div>
+    <div class="nav-item active" data-view="analyze">
+      <span class="nav-icon">⚡</span> Analyze Incident
+    </div>
+    <div class="nav-item" data-view="reports">
+      <span class="nav-icon">📋</span> Reports
+    </div>
+    <div class="nav-section">Knowledge</div>
+    <div class="nav-item" data-view="search">
+      <span class="nav-icon">🔍</span> Search KB
+    </div>
+    <div class="nav-item" data-view="upload">
+      <span class="nav-icon">📄</span> Upload File
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="seed-btn" onclick="seedKB()">⚡ Load Sample Data</button>
+      <p style="font-size:11px; color:var(--text-dim); margin-top:8px; font-family:var(--mono)">
+        Seeds 5 sample incidents into ChromaDB for demo
+      </p>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- ── VIEW: ANALYZE ── -->
+    <div class="view active" id="view-analyze">
+      <div class="page-header">
+        <div class="page-eyebrow">Root Cause Analysis</div>
+        <div class="page-title">Analyze an Incident</div>
+        <div class="page-sub">Submit incident details — the AI agent will reason through 7 steps and return a full RCA.</div>
+      </div>
+
+      <!-- FORM -->
+      <div class="card" id="form-card">
+        <div class="card-title">Incident Details</div>
+        <div class="form-grid">
+          <div>
+            <label>Title <span>*</span></label>
+            <input id="f-title" type="text" placeholder="e.g. Payment service returning 502 errors after deployment"/>
+          </div>
+          <div>
+            <label>Severity <span>*</span></label>
+            <div class="severity-group">
+              <button class="severity-pill" data-sev="P1">P1 · Critical</button>
+              <button class="severity-pill selected" data-sev="P3">P3 · Medium</button>
+              <button class="severity-pill" data-sev="P2">P2 · High</button>
+              <button class="severity-pill" data-sev="P4">P4 · Low</button>
+            </div>
+          </div>
+          <div>
+            <label>Description <span>*</span></label>
+            <textarea id="f-desc" placeholder="What happened? What errors were seen? What was the user impact?"></textarea>
+          </div>
+          <div>
+            <label>Incident Timeline</label>
+            <textarea id="f-timeline" placeholder="09:55 - Deployment pushed&#10;10:00 - Alerts fired&#10;10:05 - On-call paged&#10;10:30 - Service restored"></textarea>
+          </div>
+          <div>
+            <label>Affected Systems</label>
+            <input id="f-systems" type="text" placeholder="payment-service, checkout-api, database (comma separated)"/>
+          </div>
+          <div>
+            <label>Additional Context</label>
+            <input id="f-context" type="text" placeholder="Recent deployments, config changes, traffic spikes..."/>
+          </div>
+          <div>
+            <label>LLM Provider</label>
+            <select id="f-llm">
+              <option value="">Default (from .env)</option>
+              <option value="groq">Groq (LLaMA 3 — Free)</option>
+              <option value="openai">OpenAI (GPT-3.5)</option>
+              <option value="azure">Azure OpenAI</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:18px; display:flex; gap:10px; align-items:center;">
+          <button class="btn btn-primary" onclick="analyzeIncident()">
+            ⚡ Run RCA Analysis
+          </button>
+          <button class="btn btn-ghost" onclick="fillDemo()">
+            Fill demo data
+          </button>
+        </div>
+      </div>
+
+      <!-- LOADER -->
+      <div class="loader-wrap" id="loader">
+        <div class="loading-text">AI agent running — 7 reasoning steps...</div>
+        <div class="loader-steps" id="loader-steps">
+          <div class="loader-step" id="step-1"><div class="spinner"></div> Summarizing incident</div>
+          <div class="loader-step" id="step-2"><div class="spinner"></div> Assessing impact</div>
+          <div class="loader-step" id="step-3"><div class="spinner"></div> Analyzing root cause (5 Whys)</div>
+          <div class="loader-step" id="step-4"><div class="spinner"></div> Identifying contributing factors</div>
+          <div class="loader-step" id="step-5"><div class="spinner"></div> Generating action items</div>
+          <div class="loader-step" id="step-6"><div class="spinner"></div> Writing lessons learned</div>
+          <div class="loader-step" id="step-7"><div class="spinner"></div> Compiling final report</div>
+        </div>
+      </div>
+
+      <!-- REPORT OUTPUT -->
+      <div class="report-wrap" id="report-out"></div>
+    </div>
+
+    <!-- ── VIEW: REPORTS ── -->
+    <div class="view" id="view-reports">
+      <div class="page-header">
+        <div class="page-eyebrow">PostgreSQL</div>
+        <div class="page-title">All RCA Reports</div>
+        <div class="page-sub">All reports saved to the database. Click any row to view the full analysis.</div>
+      </div>
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card"><div class="stat-value" id="stat-total">—</div><div class="stat-label">Total Reports</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-completed" style="color:var(--green)">—</div><div class="stat-label">Completed</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-p1" style="color:var(--p1)">—</div><div class="stat-label">P1 Critical</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-conf" style="color:var(--accent)">—</div><div class="stat-label">Avg Confidence</div></div>
+      </div>
+      <div id="reports-list" class="reports-list">
+        <div class="empty"><div class="empty-icon">📋</div>No reports yet. Analyze an incident first.</div>
+      </div>
+    </div>
+
+    <!-- ── VIEW: SEARCH ── -->
+    <div class="view" id="view-search">
+      <div class="page-header">
+        <div class="page-eyebrow">ChromaDB Vector Search</div>
+        <div class="page-title">Search Knowledge Base</div>
+        <div class="page-sub">Semantic search — finds similar incidents by meaning, not just keywords.</div>
+      </div>
+      <div class="card">
+        <div style="display:flex; gap:10px;">
+          <input id="search-q" type="text" placeholder="e.g. database connection pool exhausted"
+            style="flex:1" onkeydown="if(event.key==='Enter') searchKB()"/>
+          <button class="btn btn-primary" onclick="searchKB()">Search</button>
+        </div>
+      </div>
+      <div id="search-results"></div>
+    </div>
+
+    <!-- ── VIEW: UPLOAD ── -->
+    <div class="view" id="view-upload">
+      <div class="page-header">
+        <div class="page-eyebrow">File Processing</div>
+        <div class="page-title">Upload Incident Report</div>
+        <div class="page-sub">Upload a PDF or TXT file — the AI will extract the content and run a full RCA.</div>
+      </div>
+      <div class="card">
+        <div class="drop-zone" id="drop-zone"
+          onclick="document.getElementById('file-input').click()"
+          ondragover="event.preventDefault(); this.classList.add('over')"
+          ondragleave="this.classList.remove('over')"
+          ondrop="handleDrop(event)">
+          <div class="drop-icon">📄</div>
+          <div class="drop-text"><strong>Click to upload</strong> or drag and drop</div>
+          <div class="drop-text" style="margin-top:4px; font-size:12px;">PDF or TXT · Max 10MB</div>
+        </div>
+        <input type="file" id="file-input" accept=".pdf,.txt" style="display:none" onchange="handleFileSelect(event)"/>
+        <div id="upload-status" style="margin-top:14px;"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toasts"></div>
+
+<script>
+// ── CONFIG ─────────────────────────────────────────────────
+const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:8000'
+  : '';  // Same origin when deployed
+
+let selectedSeverity = 'P3';
+
+// ── NAV ────────────────────────────────────────────────────
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    item.classList.add('active');
+    document.getElementById('view-' + item.dataset.view).classList.add('active');
+    if (item.dataset.view === 'reports') loadReports();
+  });
+});
+
+// ── SEVERITY PILLS ─────────────────────────────────────────
+document.querySelectorAll('.severity-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('.severity-pill').forEach(p => p.classList.remove('selected'));
+    pill.classList.add('selected');
+    selectedSeverity = pill.dataset.sev;
+  });
+});
+
+// ── HEALTH CHECK ───────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const r = await fetch(`${API}/health`);
+    const d = await r.json();
+    const dot = document.getElementById('dot-api');
+    const lbl = document.getElementById('status-label');
+    dot.className = 'dot ok';
+    lbl.textContent = `${d.llm_provider.toUpperCase()} · ${d.database_connected ? 'DB ✓' : 'DB ✗'} · ${d.chromadb_connected ? 'KB ✓' : 'KB ✗'}`;
+  } catch(e) {
+    document.getElementById('dot-api').className = 'dot err';
+    document.getElementById('status-label').textContent = 'API offline';
+  }
+}
+checkHealth();
+setInterval(checkHealth, 30000);
+
+// ── ANALYZE INCIDENT ───────────────────────────────────────
+async function analyzeIncident() {
+  const title = document.getElementById('f-title').value.trim();
+  const desc  = document.getElementById('f-desc').value.trim();
+  if (!title || title.length < 5) { toast('Enter a title (min 5 chars)', 'error'); return; }
+  if (!desc  || desc.length  < 20){ toast('Enter a description (min 20 chars)', 'error'); return; }
+
+  const systems = document.getElementById('f-systems').value
+    .split(',').map(s => s.trim()).filter(Boolean);
+
+  const payload = {
+    incident: {
+      title,
+      description: desc,
+      severity: selectedSeverity,
+      affected_systems: systems,
+      incident_timeline: document.getElementById('f-timeline').value.trim() || null,
+      additional_context: document.getElementById('f-context').value.trim() || null,
+    },
+    llm_provider: document.getElementById('f-llm').value || null
+  };
+
+  // Show loader
+  document.getElementById('form-card').style.display = 'none';
+  document.getElementById('report-out').classList.remove('show');
+  const loader = document.getElementById('loader');
+  loader.classList.add('show');
+
+  // Animate steps
+  const steps = ['step-1','step-2','step-3','step-4','step-5','step-6','step-7'];
+  let stepIdx = 0;
+  const stepInterval = setInterval(() => {
+    if (stepIdx > 0) document.getElementById(steps[stepIdx-1]).classList.replace('running','done');
+    if (stepIdx < steps.length) {
+      document.getElementById(steps[stepIdx]).classList.add('running');
+      stepIdx++;
+    } else {
+      clearInterval(stepInterval);
+    }
+  }, 1800);
+
+  try {
+    const r = await fetch(`${API}/api/v1/rca/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    clearInterval(stepInterval);
+    steps.forEach(s => {
+      document.getElementById(s).classList.remove('running');
+      document.getElementById(s).classList.add('done');
+    });
+
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Analysis failed');
+
+    setTimeout(() => {
+      loader.classList.remove('show');
+      renderReport(data.report);
+      toast('RCA complete!', 'success');
+    }, 600);
+
+  } catch(e) {
+    clearInterval(stepInterval);
+    loader.classList.remove('show');
+    document.getElementById('form-card').style.display = '';
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+// ── RENDER REPORT ──────────────────────────────────────────
+function renderReport(report) {
+  if (!report) return;
+  const a = report.analysis || {};
+  const sev = report.incident?.severity || 'P3';
+  const conf = Math.round((a.confidence_score || 0) * 100);
+
+  const html = `
+    <div class="card">
+      <div class="report-header">
+        <div>
+          <div class="report-id">Incident <strong>${report.incident_id}</strong></div>
+          <div style="font-size:15px; font-weight:600; color:var(--text-hi); margin-top:4px">
+            ${report.incident?.title || ''}
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px">
+          <span class="sev-badge sev-${sev}">${sev}</span>
+          <span class="status-pill status-${report.status}">${report.status}</span>
+        </div>
+      </div>
+
+      <div class="section-label">Summary</div>
+      <div class="section-text">${a.incident_summary || '—'}</div>
+      <hr class="section-divider"/>
+
+      <div class="section-label">Impact Assessment</div>
+      <div class="section-text">${a.impact_assessment || '—'}</div>
+      <hr class="section-divider"/>
+
+      <div class="section-label">Root Cause</div>
+      <div class="section-text">${a.root_cause || '—'}</div>
+      <hr class="section-divider"/>
+
+      <div class="section-label">Contributing Factors</div>
+      <div class="action-list">
+        ${(a.contributing_factors||[]).map(f =>
+          `<div class="action-item"><div class="action-dot dot-amber"></div>${f}</div>`
+        ).join('') || '<div class="section-text" style="color:var(--text-dim)">None identified</div>'}
+      </div>
+      <hr class="section-divider"/>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px">
+        <div>
+          <div class="section-label">Immediate Actions</div>
+          <div class="action-list">
+            ${(a.immediate_actions_taken||[]).map(i =>
+              `<div class="action-item"><div class="action-dot dot-accent"></div>${i}</div>`
+            ).join('') || '—'}
+          </div>
+        </div>
+        <div>
+          <div class="section-label">Corrective Actions</div>
+          <div class="action-list">
+            ${(a.corrective_actions||[]).map(c =>
+              `<div class="action-item"><div class="action-dot dot-green"></div>${c}</div>`
+            ).join('') || '—'}
+          </div>
+        </div>
+      </div>
+      <hr class="section-divider"/>
+
+      <div class="section-label">Preventive Measures</div>
+      <div class="action-list">
+        ${(a.preventive_measures||[]).map(p =>
+          `<div class="action-item"><div class="action-dot dot-green"></div>${p}</div>`
+        ).join('') || '—'}
+      </div>
+      <hr class="section-divider"/>
+
+      <div class="section-label">Lessons Learned</div>
+      <div class="section-text">${a.lessons_learned || '—'}</div>
+
+      ${(a.similar_incidents||[]).length ? `
+        <hr class="section-divider"/>
+        <div class="section-label">Similar Past Incidents (from ChromaDB)</div>
+        <div>${(a.similar_incidents||[]).map(s => `<span class="similar-chip">${s}</span>`).join('')}</div>
+      ` : ''}
+
+      <hr class="section-divider"/>
+      <div style="display:flex; align-items:center; justify-content:space-between">
+        <div>
+          <div class="section-label" style="margin-bottom:4px">AI Confidence</div>
+          <div class="confidence-bar" style="width:200px">
+            <div class="confidence-fill" style="width:${conf}%"></div>
+          </div>
+        </div>
+        <div style="font-family:var(--mono); font-size:22px; color:var(--text-hi)">${conf}%</div>
+      </div>
+    </div>
+    <button class="btn btn-ghost" onclick="resetForm()" style="margin-top:4px">
+      ← New Analysis
+    </button>
+  `;
+
+  const wrap = document.getElementById('report-out');
+  wrap.innerHTML = html;
+  wrap.classList.add('show');
+}
+
+function resetForm() {
+  document.getElementById('form-card').style.display = '';
+  document.getElementById('report-out').classList.remove('show');
+  document.getElementById('report-out').innerHTML = '';
+  document.querySelectorAll('.loader-step').forEach(s => {
+    s.classList.remove('running','done');
+  });
+}
+
+// ── LOAD REPORTS ───────────────────────────────────────────
+async function loadReports() {
+  try {
+    const [rRes, sRes] = await Promise.all([
+      fetch(`${API}/api/v1/rca/reports`),
+      fetch(`${API}/api/v1/stats`)
+    ]);
+    const rData = await rRes.json();
+    const sData = await sRes.json();
+
+    // Stats
+    const db = sData.reports || {};
+    document.getElementById('stat-total').textContent = db.total_reports ?? '0';
+    document.getElementById('stat-completed').textContent = db.by_status?.completed ?? '0';
+    document.getElementById('stat-p1').textContent = db.by_severity?.P1 ?? '0';
+    document.getElementById('stat-conf').textContent =
+      db.average_confidence_score ? Math.round(db.average_confidence_score * 100) + '%' : '—';
+
+    // List
+    const list = document.getElementById('reports-list');
+    const reports = rData.reports || [];
+    if (!reports.length) {
+      list.innerHTML = '<div class="empty"><div class="empty-icon">📋</div>No reports yet. Analyze an incident first.</div>';
+      return;
+    }
+    list.innerHTML = reports.map(r => `
+      <div class="report-row" onclick="viewReport('${r.incident_id}')">
+        <div class="report-row-id">${r.incident_id}</div>
+        <div class="report-row-title">${r.incident?.title || 'Untitled'}</div>
+        <span class="sev-badge sev-${r.incident?.severity}">${r.incident?.severity}</span>
+        <span class="status-pill status-${r.status}">${r.status}</span>
+        <div class="report-row-time">${formatDate(r.created_at)}</div>
+      </div>
+    `).join('');
+  } catch(e) {
+    toast('Could not load reports — is the API running?', 'error');
+  }
+}
+
+async function viewReport(incidentId) {
+  try {
+    const r = await fetch(`${API}/api/v1/rca/reports/${incidentId}`);
+    const data = await r.json();
+    // Switch to analyze view and show report
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.querySelector('[data-view="analyze"]').classList.add('active');
+    document.getElementById('view-analyze').classList.add('active');
+    document.getElementById('form-card').style.display = 'none';
+    renderReport(data.report);
+  } catch(e) {
+    toast('Failed to load report', 'error');
+  }
+}
+
+// ── SEARCH KB ──────────────────────────────────────────────
+async function searchKB() {
+  const q = document.getElementById('search-q').value.trim();
+  if (!q) { toast('Enter a search query', 'error'); return; }
+  const container = document.getElementById('search-results');
+  container.innerHTML = '<div class="empty">Searching...</div>';
+  try {
+    const r = await fetch(`${API}/api/v1/incidents/search?query=${encodeURIComponent(q)}&top_k=5`);
+    const data = await r.json();
+    const results = data.results || [];
+    if (!results.length) {
+      container.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div>No similar incidents found. Try seeding sample data first.</div>';
+      return;
+    }
+    container.innerHTML = results.map(res => `
+      <div class="search-result">
+        <div class="search-result-title">${res.title}</div>
+        <div class="search-result-meta">${res.incident_id} · Severity: ${res.severity}</div>
+        <div class="similarity-bar">
+          <div class="sim-track"><div class="sim-fill" style="width:${res.similarity_score * 100}%"></div></div>
+          <div class="sim-pct">${Math.round(res.similarity_score * 100)}% match</div>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    container.innerHTML = '<div class="empty">Search failed — is the API running?</div>';
+  }
+}
+
+// ── SEED KB ────────────────────────────────────────────────
+async function seedKB() {
+  toast('Seeding knowledge base...', 'info');
+  try {
+    const r = await fetch(`${API}/api/v1/incidents/seed`, { method: 'POST' });
+    const data = await r.json();
+    toast(data.message || 'Seeded!', 'success');
+    checkHealth();
+  } catch(e) {
+    toast('Seed failed — is the API running?', 'error');
+  }
+}
+
+// ── FILE UPLOAD ────────────────────────────────────────────
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('over');
+  const file = e.dataTransfer.files[0];
+  if (file) uploadFile(file);
+}
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) uploadFile(file);
+}
+async function uploadFile(file) {
+  const status = document.getElementById('upload-status');
+  status.innerHTML = '<div style="color:var(--accent); font-family:var(--mono); font-size:12px">Uploading and analyzing...</div>';
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch(`${API}/api/v1/rca/upload`, { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail);
+    status.innerHTML = `<div style="color:var(--green); font-size:12px">✓ Analysis complete — incident ID: ${data.incident_id}</div>`;
+    renderReport(data.report);
+    toast('File analyzed successfully!', 'success');
+  } catch(e) {
+    status.innerHTML = `<div style="color:var(--red); font-size:12px">Error: ${e.message}</div>`;
+    toast('Upload failed: ' + e.message, 'error');
+  }
+}
+
+// ── DEMO DATA ──────────────────────────────────────────────
+function fillDemo() {
+  document.getElementById('f-title').value = 'Payment service returning 502 errors after deployment';
+  document.getElementById('f-desc').value = 'Users are unable to complete checkout. Payment service is returning 502 Bad Gateway errors. Error rate spiked to 95% at 10:00 AM. This happened 5 minutes after deploying v2.3.1 which included a database schema change.';
+  document.getElementById('f-timeline').value = '09:55 - Deployment of v2.3.1 pushed to production\n10:00 - Alerts fired for payment-service 502 errors\n10:05 - On-call engineer paged\n10:20 - Rollback initiated\n10:35 - Service fully restored';
+  document.getElementById('f-systems').value = 'payment-service, checkout-api, database';
+  document.getElementById('f-context').value = 'Deployment included a database schema migration. This is a high-traffic period (Black Friday sale).';
+  document.querySelectorAll('.severity-pill').forEach(p => p.classList.remove('selected'));
+  document.querySelector('[data-sev="P1"]').classList.add('selected');
+  selectedSeverity = 'P1';
+  toast('Demo data loaded!', 'info');
+}
+
+// ── HELPERS ────────────────────────────────────────────────
+function formatDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+
+function toast(msg, type = 'info') {
+  const c = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+</script>
+</body>
+</html>
