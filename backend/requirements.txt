@@ -11,11 +11,7 @@ langgraph>=0.1.0,<0.2.0
 langchain-groq>=0.1.0,<0.2.0
 langchain-openai>=0.1.0,<0.2.0
 
-# ── Embeddings ─────────────────────────────────────────────
-langchain-huggingface>=0.0.3
-sentence-transformers>=2.7.0,<4.0.0
-
-# ── Vector DB ──────────────────────────────────────────────
+# ── Embeddings (lightweight — no torch needed) ─────────────
 chromadb>=0.5.0,<0.6.0
 
 # ── PostgreSQL ─────────────────────────────────────────────
