@@ -86,16 +86,15 @@ app.include_router(chat_router,      prefix="/api/v1")
 
 @app.get("/", tags=["Root"])
 async def root():
+    """Serve landing page at root URL."""
+    landing_path = os.path.join(frontend_path, "landing.html")
+    if os.path.exists(landing_path):
+        return FileResponse(landing_path)
     return {
         "message": f"Welcome to {settings.APP_NAME}!",
         "version": settings.APP_VERSION,
-        "docs": "/docs",
-        "quick_start": {
-            "step_1": "POST /api/v1/incidents/seed  (load sample data)",
-            "step_2": "POST /api/v1/rca/analyze     (submit an incident)",
-            "step_3": "GET  /api/v1/rca/reports      (view all reports)",
-            "step_4": "POST /api/v1/chat/message     (chat about an incident)"
-        }
+        "ui": "/ui",
+        "docs": "/docs"
     }
 
 
@@ -139,10 +138,20 @@ if os.path.exists(frontend_path):
 
 @app.get("/ui", tags=["Frontend"])
 async def serve_ui():
+    """Serve the main app UI."""
     ui_path = os.path.join(frontend_path, "index.html")
     if os.path.exists(ui_path):
         return FileResponse(ui_path)
     return {"message": "Frontend not found"}
+
+@app.get("/home", tags=["Frontend"])
+@app.get("/landing", tags=["Frontend"])
+async def serve_landing():
+    """Serve the landing page."""
+    landing_path = os.path.join(frontend_path, "landing.html")
+    if os.path.exists(landing_path):
+        return FileResponse(landing_path)
+    return {"message": "Landing page not found"}
 
 
 if __name__ == "__main__":
