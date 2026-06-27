@@ -166,6 +166,46 @@
     .toast-i{background:var(--accent-lo);border:1px solid rgba(79,142,247,.3);color:var(--accent)}
     @keyframes slidein{from{transform:translateX(18px);opacity:0}}
     @media(max-width:768px){.shell{grid-template-columns:1fr}.sidebar{display:none}.frow{grid-template-columns:1fr}.sgrid4{grid-template-columns:1fr 1fr}}
+
+    /* ── REPORT + CHAT LAYOUT ──────────────────────────────── */
+    .report-chat-wrap{display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start}
+    .report-chat-wrap .rwrap{display:block}
+
+    /* ── CHAT PANEL ────────────────────────────────────────── */
+    .chat-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;height:calc(100vh - 140px);position:sticky;top:16px}
+    .chat-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+    .chat-header-title{font-family:var(--mono);font-size:11px;color:var(--hi);font-weight:600;letter-spacing:.5px}
+    .chat-header-sub{font-size:11px;color:var(--dim);margin-left:auto}
+    .chat-messages{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+    .chat-msg{display:flex;flex-direction:column;gap:3px;max-width:100%}
+    .chat-msg.user{align-items:flex-end}
+    .chat-msg.assistant{align-items:flex-start}
+    .chat-bubble{padding:9px 12px;border-radius:var(--r);font-size:12px;line-height:1.6;max-width:95%}
+    .chat-msg.user .chat-bubble{background:var(--accent-lo);border:1px solid rgba(79,142,247,.25);color:var(--text)}
+    .chat-msg.assistant .chat-bubble{background:var(--bg);border:1px solid var(--border);color:var(--text)}
+    .chat-bubble code{font-family:var(--mono);font-size:11px;background:rgba(255,255,255,.05);padding:1px 4px;border-radius:3px}
+    .chat-bubble pre{background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:4px;padding:8px;overflow-x:auto;font-family:var(--mono);font-size:11px;margin:6px 0;white-space:pre-wrap}
+    .chat-bubble strong{color:var(--hi)}
+    .chat-bubble ul,.chat-bubble ol{padding-left:16px;margin:4px 0}
+    .chat-bubble li{margin:2px 0}
+    .chat-time{font-family:var(--mono);font-size:10px;color:var(--dim)}
+    .chat-thinking{display:flex;align-items:center;gap:6px;padding:8px 12px;font-size:12px;color:var(--dim);font-family:var(--mono)}
+    .think-dots span{display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--accent);animation:bounce .8s infinite}
+    .think-dots span:nth-child(2){animation-delay:.15s}
+    .think-dots span:nth-child(3){animation-delay:.3s}
+    @keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
+    .chat-suggestions{padding:8px 12px;display:flex;flex-wrap:wrap;gap:5px;border-top:1px solid var(--border)}
+    .suggestion-chip{padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:20px;font-size:11px;color:var(--dim);cursor:pointer;transition:all .15s;white-space:nowrap}
+    .suggestion-chip:hover{border-color:var(--accent);color:var(--accent)}
+    .chat-input-area{padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end}
+    .chat-input-area textarea{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:12px;padding:8px 10px;resize:none;outline:none;min-height:36px;max-height:100px;line-height:1.5}
+    .chat-input-area textarea:focus{border-color:var(--accent)}
+    .chat-send{width:34px;height:34px;border-radius:var(--r);background:var(--accent);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .15s}
+    .chat-send:hover{opacity:.85}
+    .chat-send:disabled{opacity:.4;cursor:not-allowed}
+    .chat-quick-row{padding:6px 12px 0;display:flex;gap:5px;flex-wrap:wrap}
+    .quick-btn{padding:3px 9px;background:var(--purple-lo);border:1px solid rgba(167,139,250,.2);border-radius:4px;font-family:var(--mono);font-size:10px;color:var(--purple);cursor:pointer;transition:all .15s}
+    .quick-btn:hover{background:rgba(167,139,250,.2)}
   </style>
 </head>
 <body>
@@ -273,8 +313,41 @@
         </div>
       </div>
 
-      <!-- report output -->
-      <div class="rwrap" id="rout"></div>
+      <!-- report + chat two-column layout -->
+      <div id="report-chat-container" style="display:none">
+        <div class="report-chat-wrap">
+          <!-- LEFT: RCA Report -->
+          <div id="rout"></div>
+          <!-- RIGHT: Chat Panel -->
+          <div class="chat-panel" id="chat-panel">
+            <div class="chat-header">
+              <span style="font-size:15px">💬</span>
+              <span class="chat-header-title">Incident Assistant</span>
+              <span class="chat-header-sub" id="chat-inc-label"></span>
+            </div>
+            <div class="chat-quick-row">
+              <button class="quick-btn" onclick="quickChat('Generate a detailed 5 Whys analysis for this incident in numbered format.')">5 Whys</button>
+              <button class="quick-btn" onclick="quickChat('Generate 5 investigation questions I should ask in the MIR call.')">MIR Questions</button>
+              <button class="quick-btn" onclick="quickChat('Write a 3-sentence executive summary for senior leadership.')">Exec Summary</button>
+              <button class="quick-btn" onclick="quickChat('Format all corrective and preventive actions as a table: Action | Owner | Due Date | Status')">Actions Table</button>
+              <button class="quick-btn" onclick="quickChat('Rewrite the root cause in clearer language suitable for a management report.')">Reword Root Cause</button>
+              <button class="quick-btn" onclick="quickChat('Based on similar past incidents, what systemic patterns exist and what single fix addresses all of them?')">Patterns</button>
+            </div>
+            <div class="chat-messages" id="chat-messages">
+              <div class="chat-msg assistant">
+                <div class="chat-bubble">👋 I have full context of this incident and RCA.<br><br>Ask me anything — 5 Whys, MIR questions, reword sections, executive summary, action tables, or patterns across similar incidents.</div>
+              </div>
+            </div>
+            <div class="chat-suggestions" id="chat-sugg" style="display:none"></div>
+            <div class="chat-input-area">
+              <textarea id="chat-input" placeholder="Ask anything about this incident..." rows="1" onkeydown="chatKeydown(event)" oninput="autoResizeChat(this)"></textarea>
+              <button class="chat-send" id="chat-send-btn" onclick="sendChat()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ═══ VIEW: REPORTS ═══ -->
@@ -482,8 +555,13 @@ async function runAnalysis(payload){
 }
 
 // ── RENDER REPORT ──────────────────────────────────────────
-function renderReport(report){
+let currentReport = null;  // Store report for chat context
+let chatHistory = [];      // Conversation history
+
+function renderReport(report) {
   if(!report)return;
+  currentReport = report;  // Save for chat
+  chatHistory = [];        // Reset chat for new report
   const a=report.analysis||{};
   const sv=report.incident?.severity||'P3';
   const conf=Math.round((a.confidence_score||0)*100);
@@ -522,16 +600,170 @@ function renderReport(report){
       <div style="font-family:var(--mono);font-size:22px;color:var(--hi)">${conf}%</div>
     </div>
   </div>
-  <button class="btn btn-ghost" onclick="resetForm()">← New Analysis</button>`;
-  const rout=document.getElementById('rout');
-  rout.innerHTML=html; rout.classList.add('show');
+  <button class="btn btn-ghost" onclick="resetForm()" style="margin-top:8px">← New Analysis</button>`;
+
+  // Show report in the left column
+  document.getElementById('rout').innerHTML = html;
+
+  // Show the two-column container (report + chat)
+  document.getElementById('fcard').style.display='none';
+  document.getElementById('report-chat-container').style.display='block';
+
+  // Set chat label
+  document.getElementById('chat-inc-label').textContent = report.incident_id;
+
+  // Reset chat to welcome message
+  document.getElementById('chat-messages').innerHTML = `
+    <div class="chat-msg assistant">
+      <div class="chat-bubble">
+        👋 I have full context of <strong>${report.incident?.title||'this incident'}</strong>.<br><br>
+        Use the quick buttons above or ask me anything — 5 Whys, MIR questions, reword sections, executive summary, action tables, or patterns.
+      </div>
+    </div>`;
+  chatHistory = [];
 }
 
 function resetForm(){
   document.getElementById('fcard').style.display='';
-  document.getElementById('rout').classList.remove('show');
+  document.getElementById('report-chat-container').style.display='none';
   document.getElementById('rout').innerHTML='';
+  currentReport=null; chatHistory=[];
   ['s1','s2','s3','s4','s5','s6','s7'].forEach(s=>document.getElementById(s).classList.remove('run','done'));
+}
+
+// ── CHAT FUNCTIONS ─────────────────────────────────────────
+function quickChat(message){
+  document.getElementById('chat-input').value = message;
+  sendChat();
+}
+
+function chatKeydown(e){
+  if(e.key==='Enter' && !e.shiftKey){
+    e.preventDefault();
+    sendChat();
+  }
+}
+
+function autoResizeChat(el){
+  el.style.height='auto';
+  el.style.height=Math.min(el.scrollHeight,100)+'px';
+}
+
+async function sendChat(){
+  const input=document.getElementById('chat-input');
+  const message=input.value.trim();
+  if(!message)return;
+  if(!currentReport){toast('Run an RCA analysis first, then chat about it','e');return;}
+
+  // Add user message to UI
+  addChatMessage('user', message);
+  input.value='';
+  input.style.height='auto';
+
+  // Add to history
+  chatHistory.push({role:'user', content:message});
+
+  // Show thinking indicator
+  const thinkId = addThinking();
+  document.getElementById('chat-send-btn').disabled=true;
+
+  // Hide suggestions
+  document.getElementById('chat-sugg').style.display='none';
+
+  try{
+    const r=await fetch(`${API}/api/v1/chat/message`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        incident_id: currentReport.incident_id,
+        message: message,
+        history: chatHistory.slice(-10), // Last 10 messages
+        report_context: currentReport
+      })
+    });
+    const data=await r.json();
+    if(!r.ok) throw new Error(data.detail||'Chat failed');
+
+    // Remove thinking, add reply
+    removeThinking(thinkId);
+    const reply = data.reply || 'No response';
+    addChatMessage('assistant', reply);
+
+    // Add to history
+    chatHistory.push({role:'assistant', content:reply});
+
+    // Show suggestions
+    if(data.suggestions && data.suggestions.length){
+      const sugg=document.getElementById('chat-sugg');
+      sugg.style.display='flex';
+      sugg.innerHTML=data.suggestions.map(s=>
+        `<button class="suggestion-chip" onclick="quickChat('${s.replace(/'/g,"\\'")}')">→ ${s}</button>`
+      ).join('');
+    }
+
+  }catch(e){
+    removeThinking(thinkId);
+    addChatMessage('assistant',`❌ Error: ${e.message}`);
+    toast('Chat error: '+e.message,'e');
+  }finally{
+    document.getElementById('chat-send-btn').disabled=false;
+  }
+}
+
+function addChatMessage(role, content){
+  const msgs=document.getElementById('chat-messages');
+  const time=new Date().toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit'});
+
+  // Convert markdown-ish to HTML
+  const html=formatChatContent(content);
+
+  const div=document.createElement('div');
+  div.className=`chat-msg ${role}`;
+  div.innerHTML=`
+    <div class="chat-bubble">${html}</div>
+    <div class="chat-time">${time}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+function formatChatContent(text){
+  // Convert markdown to HTML for chat bubbles
+  return text
+    // Code blocks
+    .replace(/```([\s\S]*?)```/g,'<pre>$1</pre>')
+    // Inline code
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    // Bold
+    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+    // Tables (simple)
+    .replace(/\|(.+)\|/g,(match)=>{
+      const cells=match.split('|').filter(c=>c.trim()&&!c.match(/^[-:]+$/));
+      return '<div style="font-family:var(--mono);font-size:11px;background:rgba(0,0,0,.2);padding:4px 6px;border-radius:3px;margin:2px 0">'+cells.map(c=>`<span style="margin-right:12px">${c.trim()}</span>`).join('')+'</div>';
+    })
+    // Numbered lists
+    .replace(/^\d+\.\s+(.+)$/gm,'<div style="margin:3px 0">• $1</div>')
+    // Bullet lists
+    .replace(/^[-*]\s+(.+)$/gm,'<div style="margin:3px 0">• $1</div>')
+    // Line breaks
+    .replace(/\n\n/g,'<br><br>')
+    .replace(/\n/g,'<br>');
+}
+
+function addThinking(){
+  const msgs=document.getElementById('chat-messages');
+  const id='think-'+Date.now();
+  const div=document.createElement('div');
+  div.id=id;
+  div.className='chat-thinking';
+  div.innerHTML=`<div class="think-dots"><span></span><span></span><span></span></div> thinking...`;
+  msgs.appendChild(div);
+  msgs.scrollTop=msgs.scrollHeight;
+  return id;
+}
+
+function removeThinking(id){
+  const el=document.getElementById(id);
+  if(el)el.remove();
 }
 
 // ── EXCEL UPLOAD ───────────────────────────────────────────
@@ -696,7 +928,7 @@ async function viewReport(id){
     document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
     document.querySelector('[data-v="analyze"]').classList.add('active');
     document.getElementById('view-analyze').classList.add('active');
-    document.getElementById('fcard').style.display='none';
+    document.getElementById('loader').classList.remove('show');
     renderReport(d.report);
   }catch{toast('Failed to load report','e');}
 }
