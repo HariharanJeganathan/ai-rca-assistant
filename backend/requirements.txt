@@ -1,38 +1,38 @@
 # ── Web Framework ──────────────────────────────────────────
-fastapi==0.111.0
-uvicorn[standard]==0.30.1
-python-multipart==0.0.9
+fastapi>=0.110.0,<0.115.0
+uvicorn[standard]>=0.29.0,<0.32.0
+python-multipart>=0.0.9
 
 # ── LangChain / LangGraph ──────────────────────────────────
-langchain==0.2.6
-langchain-core==0.2.10
-langchain-community==0.2.6
-langgraph==0.1.9
-langchain-groq==0.1.6
-langchain-openai==0.1.14
+langchain>=0.2.0,<0.3.0
+langchain-core>=0.2.0,<0.3.0
+langchain-community>=0.2.0,<0.3.0
+langgraph>=0.1.0,<0.2.0
+langchain-groq>=0.1.0,<0.2.0
+langchain-openai>=0.1.0,<0.2.0
 
 # ── Embeddings ─────────────────────────────────────────────
-langchain-huggingface==0.0.3
-sentence-transformers==3.0.1
+langchain-huggingface>=0.0.3
+sentence-transformers>=2.7.0,<4.0.0
 
 # ── Vector DB ──────────────────────────────────────────────
-chromadb==0.5.3
+chromadb>=0.5.0,<0.6.0
 
 # ── PostgreSQL ─────────────────────────────────────────────
-asyncpg==0.29.0
-sqlalchemy[asyncio]==2.0.31
+asyncpg>=0.29.0
+sqlalchemy[asyncio]>=2.0.0,<3.0.0
 
 # ── Data / Files ───────────────────────────────────────────
-pydantic==2.7.4
-pydantic-settings==2.3.4
-python-dotenv==1.0.1
-pypdf==4.2.0
-openpyxl==3.1.5
+pydantic>=2.7.0,<3.0.0
+pydantic-settings>=2.3.0
+python-dotenv>=1.0.0
+pypdf>=4.0.0
+openpyxl>=3.1.0
 
 # ── Utils ──────────────────────────────────────────────────
-httpx==0.27.0
-tenacity==8.4.1
+httpx>=0.27.0
+tenacity>=8.0.0
 
 # ── Testing ────────────────────────────────────────────────
-pytest==8.2.2
-pytest-asyncio==0.23.7
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
