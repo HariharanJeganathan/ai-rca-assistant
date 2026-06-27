@@ -3,209 +3,456 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AI RCA Assistant — FedEx</title>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <title>RCA Assistant — Analyze</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     :root {
-      --bg:#0d0f14; --surface:#141720; --border:#1e2330; --border-hi:#2a3045;
-      --text:#c8cdd8; --dim:#5a6176; --hi:#eef0f5;
-      --accent:#4f8ef7; --accent-lo:rgba(79,142,247,.12);
-      --green:#2dd4a0; --green-lo:rgba(45,212,160,.12);
-      --amber:#f5a623; --amber-lo:rgba(245,166,35,.1);
-      --red:#f25757; --red-lo:rgba(242,87,87,.1);
-      --purple:#a78bfa; --purple-lo:rgba(167,139,250,.12);
-      --p1:#f25757; --p2:#f5a623; --p3:#4f8ef7; --p4:#2dd4a0;
-      --r:6px; --mono:'IBM Plex Mono',monospace; --sans:'Inter',sans-serif;
+      /* Light sidebar palette */
+      --sb-bg:    #ffffff;
+      --sb-hover: #f4f4f8;
+      --sb-active:#eef0ff;
+      --sb-text:  #64748b;
+      --sb-hi:    #1e293b;
+      --sb-border:#e8eaf0;
+      --sb-accent:#6366f1;
+      /* Dark content palette — softer than before */
+      --c-bg:    #141928;
+      --c-surface:#1c2236;
+      --c-card:  #212840;
+      --c-border:#2c3454;
+      --c-border-lo:#252d46;
+      --c-text:  #cbd5e1;
+      --c-dim:   #64748b;
+      --c-hi:    #f1f5f9;
+      --c-muted: #94a3b8;
+      /* Accents */
+      --violet:  #6366f1;
+      --violet-lo:rgba(99,102,241,.14);
+      --violet-md:rgba(99,102,241,.25);
+      --green:   #10b981;
+      --green-lo:rgba(16,185,129,.12);
+      --amber:   #f59e0b;
+      --amber-lo:rgba(245,158,11,.1);
+      --red:     #ef4444;
+      --red-lo:  rgba(239,68,68,.1);
+      --purple:  #a78bfa;
+      --purple-lo:rgba(167,139,250,.12);
+      /* Severity */
+      --p1:#ef4444; --p2:#f59e0b; --p3:#6366f1; --p4:#10b981;
+      --r:8px;
+      --mono:'JetBrains Mono',monospace;
+      --sans:'Inter',sans-serif;
+      --display:'Sora',sans-serif;
     }
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    html{font-size:14px} body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6}
-    .shell{display:grid;grid-template-columns:240px 1fr;grid-template-rows:52px 1fr;min-height:100vh}
-    /* topbar */
-    .topbar{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:0 20px;background:var(--surface);border-bottom:1px solid var(--border)}
-    .logo{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--hi);letter-spacing:.5px}
-    .logo span{color:var(--accent)}
-    .topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px}
-    .dot{width:7px;height:7px;border-radius:50%;background:var(--dim)}
-    .dot.ok{background:var(--green);box-shadow:0 0 6px var(--green)}
-    .dot.err{background:var(--red)}
-    .slabel{font-family:var(--mono);font-size:11px;color:var(--dim)}
-    /* sidebar */
-    .sidebar{background:var(--surface);border-right:1px solid var(--border);padding:12px 0;display:flex;flex-direction:column;gap:1px;overflow-y:auto}
-    .nsec{padding:14px 16px 5px;font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:1.2px;text-transform:uppercase}
-    .nitem{display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;color:var(--dim);font-size:13px;border-left:2px solid transparent;transition:all .15s}
-    .nitem:hover{color:var(--text);background:var(--accent-lo)}
-    .nitem.active{color:var(--accent);background:var(--accent-lo);border-left-color:var(--accent)}
-    .nicon{font-size:14px;width:18px;text-align:center}
-    .sfooter{margin-top:auto;padding:12px 16px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
-    .seed-btn{width:100%;padding:7px 10px;background:var(--green-lo);border:1px solid rgba(45,212,160,.25);color:var(--green);border-radius:var(--r);font-family:var(--mono);font-size:11px;cursor:pointer}
-    .seed-btn:hover{background:rgba(45,212,160,.2)}
-    /* main */
-    .main{overflow-y:auto;padding:24px 28px;display:flex;flex-direction:column}
-    .view{display:none} .view.active{display:block}
-    /* page header */
-    .phead{margin-bottom:20px}
-    .peyebrow{font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:3px}
-    .ptitle{font-size:20px;font-weight:600;color:var(--hi);letter-spacing:-.3px}
-    .psub{font-size:12px;color:var(--dim);margin-top:3px}
-    /* card */
-    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px;margin-bottom:14px}
-    .ctitle{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.8px;text-transform:uppercase;margin-bottom:12px}
-    /* form */
-    .fgrid{display:grid;gap:12px}
-    .frow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    label{display:block;font-size:11px;color:var(--dim);margin-bottom:4px;font-weight:500}
-    label span{color:var(--red)}
-    input,textarea,select{width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:13px;outline:none;transition:border-color .15s}
-    input:focus,textarea:focus,select:focus{border-color:var(--accent)}
-    textarea{min-height:80px;resize:vertical} select option{background:var(--surface)}
-    /* severity */
-    .sevgroup{display:flex;gap:6px;flex-wrap:wrap}
-    .sevpill{padding:5px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--dim);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all .15s}
-    .sevpill[data-s="P1"]:hover,.sevpill[data-s="P1"].sel{background:rgba(242,87,87,.15);border-color:var(--p1);color:var(--p1)}
-    .sevpill[data-s="P2"]:hover,.sevpill[data-s="P2"].sel{background:rgba(245,166,35,.15);border-color:var(--p2);color:var(--p2)}
-    .sevpill[data-s="P3"]:hover,.sevpill[data-s="P3"].sel{background:rgba(79,142,247,.15);border-color:var(--p3);color:var(--p3)}
-    .sevpill[data-s="P4"]:hover,.sevpill[data-s="P4"].sel{background:rgba(45,212,160,.15);border-color:var(--p4);color:var(--p4)}
-    /* tabs inside upload */
-    .tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px}
-    .tab{padding:8px 18px;font-size:12px;font-weight:500;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s}
-    .tab:hover{color:var(--text)}
-    .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
-    .tabpanel{display:none} .tabpanel.active{display:block}
-    /* buttons */
-    .btn{padding:8px 18px;border-radius:var(--r);border:none;font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer;transition:opacity .15s,transform .1s;display:inline-flex;align-items:center;gap:6px}
-    .btn:active{transform:scale(.98)}
-    .btn-primary{background:var(--accent);color:#fff} .btn-primary:hover{opacity:.88} .btn-primary:disabled{opacity:.4;cursor:not-allowed}
-    .btn-ghost{background:transparent;color:var(--dim);border:1px solid var(--border)} .btn-ghost:hover{border-color:var(--border-hi);color:var(--text)}
-    .btn-purple{background:var(--purple-lo);color:var(--purple);border:1px solid rgba(167,139,250,.25)} .btn-purple:hover{background:rgba(167,139,250,.2)}
-    /* loader */
-    .loader{display:none;flex-direction:column;align-items:center;gap:14px;padding:32px;text-align:center}
-    .loader.show{display:flex}
-    .lsteps{display:flex;flex-direction:column;gap:7px;width:100%;max-width:320px;text-align:left}
-    .lstep{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:12px;color:var(--dim);opacity:.35;transition:opacity .4s}
-    .lstep.run{opacity:1;color:var(--accent)} .lstep.done{opacity:1;color:var(--green)}
-    .spin{width:13px;height:13px;border:2px solid var(--border-hi);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
-    .lstep.done .spin{border-color:var(--green);border-top-color:var(--green);animation:none}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    .ltext{font-family:var(--mono);font-size:12px;color:var(--accent)}
-    /* report */
-    .rwrap{display:none} .rwrap.show{display:block}
-    .rhead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
-    .rid{font-family:var(--mono);font-size:11px;color:var(--dim)}
-    .rid strong{color:var(--accent)}
-    .sbadge{padding:3px 9px;border-radius:4px;font-family:var(--mono);font-size:11px;font-weight:600}
-    .sev-P1{background:rgba(242,87,87,.15);color:var(--p1)}
-    .sev-P2{background:rgba(245,166,35,.15);color:var(--p2)}
-    .sev-P3{background:rgba(79,142,247,.15);color:var(--p3)}
-    .sev-P4{background:rgba(45,212,160,.15);color:var(--p4)}
-    .slabel2{font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:7px}
-    .stext{font-size:13px;line-height:1.7;color:var(--text)}
-    .sdiv{border:none;border-top:1px solid var(--border);margin:16px 0}
-    .alist{display:flex;flex-direction:column;gap:6px}
-    .aitem{display:flex;align-items:flex-start;gap:9px;font-size:13px;color:var(--text);line-height:1.5}
-    .adot{width:5px;height:5px;border-radius:50%;margin-top:7px;flex-shrink:0}
-    .dg{background:var(--green)} .da{background:var(--amber)} .db{background:var(--accent)}
-    .cbar{height:4px;background:var(--border);border-radius:2px;margin-top:5px;overflow:hidden}
-    .cfill{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));border-radius:2px;transition:width .8s ease}
-    .schip{display:inline-block;padding:2px 9px;background:var(--accent-lo);border:1px solid rgba(79,142,247,.2);border-radius:4px;font-family:var(--mono);font-size:11px;color:var(--accent);margin:2px 2px 2px 0}
-    /* reports list */
-    .rlist{display:flex;flex-direction:column;gap:8px}
-    .rrow{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:border-color .15s}
-    .rrow:hover{border-color:var(--border-hi)}
-    .rrowid{font-family:var(--mono);font-size:11px;color:var(--accent);min-width:150px}
-    .rrowtitle{font-size:13px;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .rrowtime{font-family:var(--mono);font-size:11px;color:var(--dim);white-space:nowrap}
-    .spill{padding:2px 7px;border-radius:4px;font-family:var(--mono);font-size:10px;white-space:nowrap}
-    .sc{background:var(--green-lo);color:var(--green)}
-    .sa{background:var(--accent-lo);color:var(--accent)}
-    .sf{background:var(--red-lo);color:var(--red)}
-    .sp{background:var(--amber-lo);color:var(--amber)}
-    /* search db */
-    .sgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
-    .scard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px}
-    .scard-val{font-family:var(--mono);font-size:24px;font-weight:600;color:var(--hi);line-height:1}
-    .scard-lbl{font-size:11px;color:var(--dim);margin-top:4px}
-    .bucket{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:8px}
-    .bucket-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer}
-    .bball{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-    .btitle{font-size:13px;font-weight:500;color:var(--hi)}
-    .bcount{font-family:var(--mono);font-size:11px;color:var(--dim);margin-left:auto}
-    .bincs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-    .bchip{padding:3px 9px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-family:var(--mono);font-size:11px;color:var(--text);cursor:pointer}
-    .bchip:hover{border-color:var(--accent);color:var(--accent)}
-    .sim-bar{display:flex;align-items:center;gap:7px;margin-top:6px}
-    .sim-track{flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden}
-    .sim-fill{height:100%;background:var(--accent);border-radius:2px}
-    .sim-pct{font-family:var(--mono);font-size:10px;color:var(--accent)}
-    /* drop zone */
-    .dzone{border:1px dashed var(--border-hi);border-radius:var(--r);padding:24px;text-align:center;cursor:pointer;transition:all .15s}
-    .dzone:hover,.dzone.over{border-color:var(--accent);background:var(--accent-lo)}
-    .dicon{font-size:22px;margin-bottom:6px}
-    .dtext{font-size:13px;color:var(--dim)}
-    .dtext strong{color:var(--text)}
-    /* paste box */
-    .paste-wrap textarea{min-height:160px;font-family:var(--mono);font-size:12px;line-height:1.6}
-    /* preview strip (Excel parsed data) */
-    .preview-strip{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-top:10px;font-size:12px}
-    .preview-row{display:flex;gap:8px;padding:3px 0;border-bottom:1px solid var(--border)}
-    .preview-row:last-child{border-bottom:none}
-    .preview-key{font-family:var(--mono);font-size:11px;color:var(--dim);min-width:140px}
-    .preview-val{color:var(--text);flex:1}
-    /* stats */
-    .sgrid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
-    .stcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px}
-    .stval{font-family:var(--mono);font-size:26px;font-weight:600;color:var(--hi);line-height:1}
-    .stlbl{font-size:11px;color:var(--dim);margin-top:4px}
-    /* empty */
-    .empty{text-align:center;padding:40px 20px;color:var(--dim);font-size:13px}
-    .eicon{font-size:26px;margin-bottom:8px}
-    /* toast */
-    .toasts{position:fixed;bottom:18px;right:18px;display:flex;flex-direction:column;gap:7px;z-index:1000}
-    .toast{padding:9px 14px;border-radius:var(--r);font-size:12px;font-family:var(--mono);animation:slidein .2s ease;max-width:300px}
-    .toast-s{background:var(--green-lo);border:1px solid rgba(45,212,160,.3);color:var(--green)}
-    .toast-e{background:var(--red-lo);border:1px solid rgba(242,87,87,.3);color:var(--red)}
-    .toast-i{background:var(--accent-lo);border:1px solid rgba(79,142,247,.3);color:var(--accent)}
-    @keyframes slidein{from{transform:translateX(18px);opacity:0}}
-    @media(max-width:768px){.shell{grid-template-columns:1fr}.sidebar{display:none}.frow{grid-template-columns:1fr}.sgrid4{grid-template-columns:1fr 1fr}}
 
-    /* ── REPORT + CHAT LAYOUT ──────────────────────────────── */
-    .report-chat-wrap{display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start}
-    .report-chat-wrap .rwrap{display:block}
+    html { font-size: 14px; }
+    body { font-family: var(--sans); background: var(--c-bg); color: var(--c-text); min-height: 100vh; }
 
-    /* ── CHAT PANEL ────────────────────────────────────────── */
-    .chat-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;height:calc(100vh - 140px);position:sticky;top:16px}
-    .chat-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
-    .chat-header-title{font-family:var(--mono);font-size:11px;color:var(--hi);font-weight:600;letter-spacing:.5px}
-    .chat-header-sub{font-size:11px;color:var(--dim);margin-left:auto}
-    .chat-messages{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
-    .chat-msg{display:flex;flex-direction:column;gap:3px;max-width:100%}
-    .chat-msg.user{align-items:flex-end}
-    .chat-msg.assistant{align-items:flex-start}
-    .chat-bubble{padding:9px 12px;border-radius:var(--r);font-size:12px;line-height:1.6;max-width:95%}
-    .chat-msg.user .chat-bubble{background:var(--accent-lo);border:1px solid rgba(79,142,247,.25);color:var(--text)}
-    .chat-msg.assistant .chat-bubble{background:var(--bg);border:1px solid var(--border);color:var(--text)}
-    .chat-bubble code{font-family:var(--mono);font-size:11px;background:rgba(255,255,255,.05);padding:1px 4px;border-radius:3px}
-    .chat-bubble pre{background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:4px;padding:8px;overflow-x:auto;font-family:var(--mono);font-size:11px;margin:6px 0;white-space:pre-wrap}
-    .chat-bubble strong{color:var(--hi)}
-    .chat-bubble ul,.chat-bubble ol{padding-left:16px;margin:4px 0}
-    .chat-bubble li{margin:2px 0}
-    .chat-time{font-family:var(--mono);font-size:10px;color:var(--dim)}
-    .chat-thinking{display:flex;align-items:center;gap:6px;padding:8px 12px;font-size:12px;color:var(--dim);font-family:var(--mono)}
-    .think-dots span{display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--accent);animation:bounce .8s infinite}
-    .think-dots span:nth-child(2){animation-delay:.15s}
-    .think-dots span:nth-child(3){animation-delay:.3s}
-    @keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
-    .chat-suggestions{padding:8px 12px;display:flex;flex-wrap:wrap;gap:5px;border-top:1px solid var(--border)}
-    .suggestion-chip{padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:20px;font-size:11px;color:var(--dim);cursor:pointer;transition:all .15s;white-space:nowrap}
-    .suggestion-chip:hover{border-color:var(--accent);color:var(--accent)}
-    .chat-input-area{padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end}
-    .chat-input-area textarea{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:12px;padding:8px 10px;resize:none;outline:none;min-height:36px;max-height:100px;line-height:1.5}
-    .chat-input-area textarea:focus{border-color:var(--accent)}
-    .chat-send{width:34px;height:34px;border-radius:var(--r);background:var(--accent);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .15s}
-    .chat-send:hover{opacity:.85}
-    .chat-send:disabled{opacity:.4;cursor:not-allowed}
-    .chat-quick-row{padding:6px 12px 0;display:flex;gap:5px;flex-wrap:wrap}
-    .quick-btn{padding:3px 9px;background:var(--purple-lo);border:1px solid rgba(167,139,250,.2);border-radius:4px;font-family:var(--mono);font-size:10px;color:var(--purple);cursor:pointer;transition:all .15s}
-    .quick-btn:hover{background:rgba(167,139,250,.2)}
+    /* ── SHELL ── */
+    .shell { display: grid; grid-template-columns: 240px 1fr; grid-template-rows: 56px 1fr; min-height: 100vh; }
+
+    /* ── TOPBAR ── */
+    .topbar {
+      grid-column: 1/-1;
+      background: var(--sb-bg);
+      border-bottom: 1px solid var(--sb-border);
+      display: flex; align-items: center; gap: 12px; padding: 0 24px;
+    }
+    .topbar-brand { display: flex; align-items: center; gap: 8px; }
+    .topbar-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--violet); box-shadow: 0 0 8px rgba(99,102,241,.5); }
+    .topbar-name { font-family: var(--display); font-size: 15px; font-weight: 700; color: #1e293b; }
+    .topbar-tag {
+      font-size: 11px; padding: 2px 8px; border-radius: 4px;
+      background: #eef0ff; color: var(--violet);
+      font-family: var(--mono); font-weight: 500;
+    }
+    .topbar-status { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+    .status-chip {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; font-family: var(--mono); color: #64748b;
+    }
+    .sdot { width: 6px; height: 6px; border-radius: 50%; background: #cbd5e1; }
+    .sdot.ok { background: var(--green); box-shadow: 0 0 6px rgba(16,185,129,.5); }
+    .sdot.err { background: var(--red); }
+    .topbar-home {
+      padding: 6px 14px; border: 1px solid var(--sb-border);
+      border-radius: 6px; font-size: 12px; color: #64748b;
+      text-decoration: none; font-weight: 500;
+      transition: all .15s;
+    }
+    .topbar-home:hover { border-color: var(--violet); color: var(--violet); }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      background: var(--sb-bg);
+      border-right: 1px solid var(--sb-border);
+      padding: 16px 0;
+      display: flex; flex-direction: column; gap: 2px; overflow-y: auto;
+    }
+    .nsec {
+      padding: 16px 18px 6px;
+      font-family: var(--mono); font-size: 10px; font-weight: 500;
+      color: #b0b8cc; letter-spacing: 1.5px; text-transform: uppercase;
+    }
+    .nitem {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 18px; cursor: pointer; color: var(--sb-text);
+      font-size: 13px; font-weight: 500; border-left: 2px solid transparent;
+      transition: all .15s; border-radius: 0;
+    }
+    .nitem:hover { background: var(--sb-hover); color: var(--sb-hi); }
+    .nitem.active { background: var(--sb-active); color: var(--sb-accent); border-left-color: var(--sb-accent); font-weight: 600; }
+    .nicon { font-size: 15px; width: 20px; text-align: center; }
+    .sfooter { margin-top: auto; padding: 14px 18px; border-top: 1px solid var(--sb-border); }
+    .seed-btn {
+      width: 100%; padding: 8px 12px;
+      background: var(--green-lo); border: 1px solid rgba(16,185,129,.25);
+      color: var(--green); border-radius: var(--r);
+      font-family: var(--mono); font-size: 11px; cursor: pointer;
+      transition: background .15s; font-weight: 500;
+    }
+    .seed-btn:hover { background: rgba(16,185,129,.2); }
+    .sfooter-note { font-size: 11px; color: #b0b8cc; margin-top: 6px; line-height: 1.4; }
+
+    /* ── MAIN ── */
+    .main { overflow-y: auto; padding: 28px 32px; }
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* ── PAGE HEADER ── */
+    .phead { margin-bottom: 24px; }
+    .peyebrow {
+      font-family: var(--mono); font-size: 10px; font-weight: 500;
+      color: var(--violet); letter-spacing: 2px; text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .ptitle { font-family: var(--display); font-size: 22px; font-weight: 700; color: var(--c-hi); }
+    .psub { font-size: 13px; color: var(--c-dim); margin-top: 4px; }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--c-surface); border: 1px solid var(--c-border);
+      border-radius: 12px; padding: 22px; margin-bottom: 16px;
+    }
+    .ctitle {
+      font-family: var(--mono); font-size: 10px; font-weight: 500;
+      color: var(--c-dim); letter-spacing: 1px; text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    /* ── FORM ── */
+    .fgrid { display: flex; flex-direction: column; gap: 14px; }
+    .frow { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    label { display: block; font-size: 12px; color: var(--c-muted); margin-bottom: 5px; font-weight: 500; }
+    label span { color: var(--red); }
+    input, textarea, select {
+      width: 100%; padding: 9px 12px;
+      background: var(--c-bg); border: 1px solid var(--c-border);
+      border-radius: var(--r); color: var(--c-text);
+      font-family: var(--sans); font-size: 13px; outline: none;
+      transition: border-color .15s;
+    }
+    input:focus, textarea:focus, select:focus { border-color: var(--violet); box-shadow: 0 0 0 3px var(--violet-lo); }
+    textarea { min-height: 80px; resize: vertical; line-height: 1.6; }
+    select option { background: var(--c-surface); }
+
+    /* ── SEVERITY PILLS ── */
+    .sevgroup { display: flex; gap: 6px; flex-wrap: wrap; }
+    .sevpill {
+      padding: 6px 16px; border-radius: 100px;
+      border: 1px solid var(--c-border); background: transparent;
+      color: var(--c-dim); font-family: var(--mono);
+      font-size: 11px; cursor: pointer; transition: all .15s; font-weight: 500;
+    }
+    .sevpill[data-s="P1"]:hover, .sevpill[data-s="P1"].sel { background: rgba(239,68,68,.12); border-color: var(--p1); color: var(--p1); }
+    .sevpill[data-s="P2"]:hover, .sevpill[data-s="P2"].sel { background: rgba(245,158,11,.12); border-color: var(--p2); color: var(--p2); }
+    .sevpill[data-s="P3"]:hover, .sevpill[data-s="P3"].sel { background: var(--violet-lo); border-color: var(--p3); color: var(--p3); }
+    .sevpill[data-s="P4"]:hover, .sevpill[data-s="P4"].sel { background: var(--green-lo); border-color: var(--p4); color: var(--p4); }
+
+    /* ── BUTTONS ── */
+    .btn { padding: 9px 20px; border-radius: var(--r); border: none; font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 7px; }
+    .btn:active { transform: scale(.98); }
+    .btn-primary { background: var(--violet); color: #fff; box-shadow: 0 2px 8px rgba(99,102,241,.3); }
+    .btn-primary:hover { background: #5558e8; box-shadow: 0 4px 16px rgba(99,102,241,.4); }
+    .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-ghost { background: transparent; color: var(--c-muted); border: 1px solid var(--c-border); }
+    .btn-ghost:hover { border-color: var(--c-border-lo); color: var(--c-text); }
+
+    /* ── TABS ── */
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--c-border); margin-bottom: 18px; }
+    .tab { padding: 9px 20px; font-size: 13px; font-weight: 500; color: var(--c-dim); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s; }
+    .tab:hover { color: var(--c-text); }
+    .tab.active { color: var(--violet); border-bottom-color: var(--violet); }
+    .tabpanel { display: none; }
+    .tabpanel.active { display: block; }
+
+    /* ── LOADER ── */
+    .loader { display: none; flex-direction: column; align-items: center; gap: 16px; padding: 40px; }
+    .loader.show { display: flex; }
+    .ltext { font-family: var(--mono); font-size: 12px; color: var(--violet); }
+    .lsteps { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 340px; }
+    .lstep { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--c-dim); opacity: .35; transition: opacity .4s; font-family: var(--mono); }
+    .lstep.run { opacity: 1; color: var(--violet); }
+    .lstep.done { opacity: 1; color: var(--green); }
+    .spin { width: 13px; height: 13px; border: 2px solid var(--c-border); border-top-color: var(--violet); border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+    .lstep.done .spin { border-color: var(--green); border-top-color: var(--green); animation: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── REPORT + CHAT TWO-COLUMN ── */
+    .report-chat-wrap { display: grid; grid-template-columns: 1fr 400px; gap: 20px; align-items: start; }
+
+    /* ── RCA REPORT CARD ── */
+    .rca-report { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 12px; overflow: hidden; }
+    .rca-report-header {
+      padding: 20px 24px 18px;
+      border-bottom: 1px solid var(--c-border);
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    }
+    .rca-inc-id { font-family: var(--mono); font-size: 11px; color: var(--violet); margin-bottom: 4px; }
+    .rca-title { font-family: var(--display); font-size: 16px; font-weight: 600; color: var(--c-hi); line-height: 1.4; }
+    .rca-badges { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+    .sev-badge { padding: 3px 10px; border-radius: 5px; font-family: var(--mono); font-size: 11px; font-weight: 600; }
+    .sev-P1 { background: rgba(239,68,68,.14); color: var(--p1); }
+    .sev-P2 { background: rgba(245,158,11,.14); color: var(--p2); }
+    .sev-P3 { background: var(--violet-lo); color: var(--p3); }
+    .sev-P4 { background: var(--green-lo); color: var(--p4); }
+    .status-pill { padding: 2px 8px; border-radius: 4px; font-family: var(--mono); font-size: 10px; }
+    .sc { background: var(--green-lo); color: var(--green); }
+    .sa { background: var(--violet-lo); color: var(--violet); }
+    .sf { background: var(--red-lo); color: var(--red); }
+
+    /* RCA SECTIONS */
+    .rca-sections { padding: 0; }
+    .rca-section {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--c-border-lo);
+      position: relative;
+    }
+    .rca-section:last-child { border-bottom: none; }
+    .rca-section::before {
+      content: '';
+      position: absolute; left: 0; top: 20px; bottom: 20px;
+      width: 2px; background: var(--violet);
+      opacity: .35; border-radius: 0 2px 2px 0;
+    }
+    .rca-section-label {
+      font-family: var(--mono); font-size: 10px; font-weight: 500;
+      color: var(--violet); letter-spacing: 1.5px; text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .rca-section-text {
+      font-size: 13px; line-height: 1.75; color: var(--c-text);
+      /* Strip markdown on display — handled in JS */
+    }
+    .rca-section-text p { margin-bottom: 8px; }
+    .rca-section-text p:last-child { margin-bottom: 0; }
+    .rca-section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .rca-bullets { display: flex; flex-direction: column; gap: 8px; }
+    .rca-bullet {
+      display: flex; align-items: flex-start; gap: 10px;
+      font-size: 13px; color: var(--c-text); line-height: 1.55;
+    }
+    .rca-bullet-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
+    .bd-violet { background: var(--violet); }
+    .bd-green  { background: var(--green); }
+    .bd-amber  { background: var(--amber); }
+    .rca-key-factors { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+    .rca-factor {
+      display: flex; align-items: flex-start; gap: 9px;
+      padding: 9px 12px; background: var(--c-bg);
+      border: 1px solid var(--c-border-lo); border-radius: 8px;
+      font-size: 12px; color: var(--c-text); line-height: 1.5;
+    }
+    .rca-factor-num {
+      font-family: var(--mono); font-size: 10px; font-weight: 600;
+      color: var(--violet); background: var(--violet-lo);
+      width: 20px; height: 20px; border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .conf-row { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+    .conf-bar { flex: 1; height: 5px; background: var(--c-border); border-radius: 3px; overflow: hidden; margin-right: 12px; }
+    .conf-fill { height: 100%; background: linear-gradient(90deg, var(--violet), var(--green)); border-radius: 3px; transition: width 1s ease; }
+    .conf-val { font-family: var(--mono); font-size: 18px; font-weight: 600; color: var(--c-hi); }
+    .similar-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .schip { padding: 3px 10px; background: var(--violet-lo); border: 1px solid var(--violet-md); border-radius: 4px; font-family: var(--mono); font-size: 11px; color: var(--violet); }
+
+    /* ── CHAT PANEL ── */
+    .chat-panel {
+      background: var(--c-surface); border: 1px solid var(--c-border);
+      border-radius: 12px; display: flex; flex-direction: column;
+      height: calc(100vh - 130px); position: sticky; top: 16px;
+    }
+    .chat-head {
+      padding: 14px 16px; border-bottom: 1px solid var(--c-border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .chat-head-avatar {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: var(--violet-lo); border: 1px solid var(--violet-md);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; flex-shrink: 0;
+    }
+    .chat-head-title { font-family: var(--display); font-size: 13px; font-weight: 600; color: var(--c-hi); }
+    .chat-head-sub { font-size: 11px; color: var(--c-dim); margin-top: 1px; font-family: var(--mono); }
+    .chat-quick {
+      padding: 10px 12px; border-bottom: 1px solid var(--c-border-lo);
+      display: flex; flex-wrap: wrap; gap: 5px;
+    }
+    .qbtn {
+      padding: 4px 11px; background: var(--c-bg);
+      border: 1px solid var(--c-border); border-radius: 100px;
+      font-size: 11px; color: var(--c-muted); cursor: pointer;
+      font-family: var(--mono); font-weight: 500;
+      transition: all .15s;
+    }
+    .qbtn:hover { border-color: var(--violet); color: var(--violet); background: var(--violet-lo); }
+    .chat-msgs {
+      flex: 1; overflow-y: auto; padding: 14px;
+      display: flex; flex-direction: column; gap: 12px;
+      scrollbar-width: thin; scrollbar-color: var(--c-border) transparent;
+    }
+    .chat-msg { display: flex; flex-direction: column; gap: 4px; }
+    .chat-msg.user { align-items: flex-end; }
+    .chat-msg.assistant { align-items: flex-start; }
+    .chat-bubble {
+      padding: 10px 14px; border-radius: 12px;
+      font-size: 13px; line-height: 1.65; max-width: 92%;
+    }
+    .chat-msg.user .chat-bubble {
+      background: var(--violet); color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .chat-msg.assistant .chat-bubble {
+      background: var(--c-card); border: 1px solid var(--c-border);
+      color: var(--c-text); border-bottom-left-radius: 4px;
+    }
+    .chat-bubble strong { color: var(--c-hi); }
+    .chat-bubble pre {
+      background: rgba(0,0,0,.3); border: 1px solid var(--c-border);
+      border-radius: 6px; padding: 10px; overflow-x: auto;
+      font-family: var(--mono); font-size: 11px; margin: 8px 0;
+      white-space: pre-wrap; line-height: 1.6;
+    }
+    .chat-bubble code { font-family: var(--mono); font-size: 11px; background: rgba(255,255,255,.07); padding: 1px 5px; border-radius: 3px; }
+    .chat-time { font-family: var(--mono); font-size: 10px; color: var(--c-dim); }
+    .chat-think {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px; color: var(--c-dim);
+      font-size: 12px; font-family: var(--mono);
+    }
+    .think-dots { display: flex; gap: 3px; }
+    .think-dots span {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--violet); animation: bounce .8s infinite;
+    }
+    .think-dots span:nth-child(2) { animation-delay: .15s; }
+    .think-dots span:nth-child(3) { animation-delay: .3s; }
+    @keyframes bounce { 0%,100%{transform:translateY(0)}40%{transform:translateY(-5px)} }
+    .chat-sugg { padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 5px; border-top: 1px solid var(--c-border-lo); }
+    .sugg-chip {
+      padding: 4px 11px; background: var(--c-bg);
+      border: 1px solid var(--c-border); border-radius: 100px;
+      font-size: 11px; color: var(--c-dim); cursor: pointer;
+      transition: all .15s;
+    }
+    .sugg-chip:hover { border-color: var(--violet); color: var(--violet); }
+    .chat-input-row {
+      padding: 10px 12px; border-top: 1px solid var(--c-border);
+      display: flex; gap: 8px; align-items: flex-end;
+    }
+    .chat-input-row textarea {
+      flex: 1; background: var(--c-bg); border: 1px solid var(--c-border);
+      border-radius: 8px; color: var(--c-text); font-size: 13px;
+      padding: 8px 12px; resize: none; min-height: 38px; max-height: 110px;
+      line-height: 1.5; font-family: var(--sans);
+    }
+    .chat-input-row textarea:focus { border-color: var(--violet); box-shadow: 0 0 0 3px var(--violet-lo); }
+    .chat-send-btn {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: var(--violet); border: none; color: white;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: all .15s;
+    }
+    .chat-send-btn:hover { background: #5558e8; }
+    .chat-send-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ── DROP ZONE ── */
+    .dzone {
+      border: 2px dashed var(--c-border); border-radius: 10px;
+      padding: 28px; text-align: center; cursor: pointer;
+      transition: all .2s;
+    }
+    .dzone:hover, .dzone.over { border-color: var(--violet); background: var(--violet-lo); }
+    .dzone-icon { font-size: 26px; margin-bottom: 8px; }
+    .dzone-text { font-size: 13px; color: var(--c-dim); }
+    .dzone-text strong { color: var(--c-text); }
+
+    /* ── PASTE BOX ── */
+    #paste-text { min-height: 140px; font-family: var(--mono); font-size: 12px; line-height: 1.7; }
+
+    /* ── EXCEL PREVIEW ── */
+    .excel-preview {
+      background: var(--c-bg); border: 1px solid var(--c-border);
+      border-radius: 8px; padding: 14px 16px; margin-top: 12px;
+    }
+    .excel-preview-ok { font-family: var(--mono); font-size: 10px; color: var(--green); margin-bottom: 10px; letter-spacing: 1px; }
+    .excel-row { display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--c-border-lo); font-size: 12px; }
+    .excel-row:last-child { border-bottom: none; }
+    .excel-key { font-family: var(--mono); font-size: 11px; color: var(--c-dim); min-width: 130px; }
+    .excel-val { color: var(--c-text); flex: 1; }
+
+    /* ── REPORTS LIST ── */
+    .sgrid4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+    .stcard { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 10px; padding: 16px; }
+    .stval { font-family: var(--display); font-size: 26px; font-weight: 700; color: var(--c-hi); line-height: 1; }
+    .stlbl { font-size: 11px; color: var(--c-dim); margin-top: 4px; }
+    .rlist { display: flex; flex-direction: column; gap: 8px; }
+    .rrow {
+      background: var(--c-surface); border: 1px solid var(--c-border);
+      border-radius: 10px; padding: 14px 18px;
+      display: flex; align-items: center; gap: 12px;
+      cursor: pointer; transition: all .15s;
+    }
+    .rrow:hover { border-color: var(--violet-md); background: var(--c-card); }
+    .rrow-id { font-family: var(--mono); font-size: 11px; color: var(--violet); min-width: 150px; }
+    .rrow-title { font-size: 13px; color: var(--c-text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rrow-time { font-family: var(--mono); font-size: 11px; color: var(--c-dim); white-space: nowrap; }
+
+    /* ── SEARCH DB ── */
+    .bucket { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 10px; padding: 14px 18px; margin-bottom: 8px; }
+    .bucket-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; cursor: pointer; }
+    .bball { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .btitle { font-size: 13px; font-weight: 600; color: var(--c-hi); }
+    .bcount { font-family: var(--mono); font-size: 11px; color: var(--c-dim); margin-left: auto; }
+    .bincs { display: flex; flex-wrap: wrap; gap: 6px; }
+    .bchip { padding: 3px 10px; background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 5px; font-family: var(--mono); font-size: 11px; color: var(--c-text); cursor: pointer; transition: all .15s; }
+    .bchip:hover { border-color: var(--violet); color: var(--violet); }
+    .sim-bar { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+    .sim-track { flex: 1; height: 3px; background: var(--c-border); border-radius: 2px; overflow: hidden; }
+    .sim-fill { height: 100%; background: var(--violet); border-radius: 2px; }
+    .sim-pct { font-family: var(--mono); font-size: 10px; color: var(--violet); }
+    .empty { text-align: center; padding: 48px 20px; color: var(--c-dim); font-size: 13px; }
+    .eicon { font-size: 28px; margin-bottom: 10px; }
+
+    /* ── TOAST ── */
+    .toasts { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 1000; }
+    .toast { padding: 10px 16px; border-radius: 8px; font-size: 12px; font-family: var(--mono); animation: slidein .2s ease; max-width: 300px; }
+    .toast-s { background: var(--green-lo); border: 1px solid rgba(16,185,129,.3); color: var(--green); }
+    .toast-e { background: var(--red-lo); border: 1px solid rgba(239,68,68,.3); color: var(--red); }
+    .toast-i { background: var(--violet-lo); border: 1px solid var(--violet-md); color: var(--violet); }
+    @keyframes slidein { from { transform: translateX(16px); opacity: 0; } }
+
+    @media(max-width:768px){
+      .shell{grid-template-columns:1fr}
+      .sidebar{display:none}
+      .frow{grid-template-columns:1fr}
+      .sgrid4{grid-template-columns:1fr 1fr}
+      .report-chat-wrap{grid-template-columns:1fr}
+      .chat-panel{height:500px;position:static}
+    }
   </style>
 </head>
 <body>
@@ -213,37 +460,43 @@
 
   <!-- TOPBAR -->
   <header class="topbar">
-    <div class="logo">RCA<span>.</span>AI <span style="color:var(--dim);font-size:11px;margin-left:4px">FedEx MI</span></div>
-    <div class="topbar-right">
-      <div class="dot" id="dot"></div>
-      <span class="slabel" id="slabel">Connecting...</span>
+    <div class="topbar-brand">
+      <div class="topbar-dot"></div>
+      <span class="topbar-name">RCA Assistant</span>
+      <span class="topbar-tag">FedEx MI</span>
+    </div>
+    <div class="topbar-status">
+      <div class="status-chip"><div class="sdot" id="dot-llm"></div><span id="lbl-llm">...</span></div>
+      <div class="status-chip"><div class="sdot" id="dot-db"></div><span id="lbl-db">DB</span></div>
+      <div class="status-chip"><div class="sdot" id="dot-kb"></div><span id="lbl-kb">KB</span></div>
+      <a href="/" class="topbar-home">← Home</a>
     </div>
   </header>
 
   <!-- SIDEBAR -->
   <nav class="sidebar">
     <div class="nsec">Analysis</div>
-    <div class="nitem active" data-v="analyze"><span class="nicon">⚡</span> Analyze Incident</div>
-    <div class="nitem" data-v="reports"><span class="nicon">📋</span> All Reports</div>
+    <div class="nitem active" data-v="analyze"><span class="nicon">⚡</span>Analyze Incident</div>
+    <div class="nitem" data-v="reports"><span class="nicon">📋</span>All Reports</div>
     <div class="nsec">Ingest</div>
-    <div class="nitem" data-v="upload"><span class="nicon">📊</span> Upload / Paste</div>
+    <div class="nitem" data-v="upload"><span class="nicon">📊</span>Upload / Paste</div>
     <div class="nsec">Search</div>
-    <div class="nitem" data-v="searchdb"><span class="nicon">🔍</span> Search DB</div>
+    <div class="nitem" data-v="searchdb"><span class="nicon">🔍</span>Search DB</div>
     <div class="sfooter">
       <button class="seed-btn" onclick="seedKB()">⚡ Load Sample Data</button>
-      <div style="font-size:10px;color:var(--dim);font-family:var(--mono);margin-top:3px">Seeds ChromaDB with 5 incidents</div>
+      <div class="sfooter-note">Seeds ChromaDB with 5 sample incidents for testing</div>
     </div>
   </nav>
 
   <!-- MAIN -->
   <main class="main">
 
-    <!-- ═══ VIEW: ANALYZE ═══ -->
+    <!-- ═══ ANALYZE ═══ -->
     <div class="view active" id="view-analyze">
       <div class="phead">
         <div class="peyebrow">LangGraph · 7-Step Agent</div>
         <div class="ptitle">Analyze an Incident</div>
-        <div class="psub">Fill manually or use Upload/Paste to auto-populate from FedEx Excel or Teams message.</div>
+        <div class="psub">Fill the form, or use Upload / Paste to auto-populate from FedEx Excel or Teams.</div>
       </div>
 
       <div class="card" id="fcard">
@@ -251,7 +504,7 @@
         <div class="fgrid">
           <div class="frow">
             <div>
-              <label>Incident Title <span>*</span></label>
+              <label>Title <span>*</span></label>
               <input id="f-title" type="text" placeholder="e.g. INC035004340 — Citrix down, Dublin DC"/>
             </div>
             <div>
@@ -270,36 +523,36 @@
           </div>
           <div>
             <label>Incident Timeline</label>
-            <textarea id="f-timeline" placeholder="17:25 GMT — ITCC initiated bridge call&#10;17:30 GMT — Firewall team engaged&#10;18:25 GMT — Auto-resolved"></textarea>
+            <textarea id="f-timeline" placeholder="17:25 GMT — ITCC initiated bridge call&#10;17:30 GMT — Firewall team engaged&#10;18:25 GMT — Issue auto-resolved"></textarea>
           </div>
           <div class="frow">
             <div>
-              <label>Affected Systems (comma separated)</label>
+              <label>Affected Systems</label>
               <input id="f-systems" type="text" placeholder="Citrix, Firewall, ROCS, OMA"/>
             </div>
             <div>
               <label>Additional Context</label>
-              <input id="f-context" type="text" placeholder="Recent changes, CHG numbers, region..."/>
+              <input id="f-context" type="text" placeholder="CHG numbers, region, recent changes..."/>
             </div>
           </div>
-          <div>
-            <label>LLM Provider Override</label>
+          <div style="max-width:260px">
+            <label>LLM Provider</label>
             <select id="f-llm">
               <option value="">Default (from .env)</option>
-              <option value="groq">Groq — LLaMA 3 (Free)</option>
-              <option value="openai">OpenAI GPT-3.5</option>
+              <option value="groq">Groq — LLaMA (Free)</option>
+              <option value="openai">OpenAI GPT</option>
               <option value="azure">Azure OpenAI</option>
             </select>
           </div>
         </div>
-        <div style="margin-top:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="analyze()">⚡ Run RCA Analysis</button>
           <button class="btn btn-ghost" onclick="fillDemo()">Fill demo</button>
           <button class="btn btn-ghost" onclick="clearForm()">Clear</button>
         </div>
       </div>
 
-      <!-- loader -->
+      <!-- LOADER -->
       <div class="loader" id="loader">
         <div class="ltext">AI agent running — 7 reasoning steps...</div>
         <div class="lsteps">
@@ -313,35 +566,39 @@
         </div>
       </div>
 
-      <!-- report + chat two-column layout -->
+      <!-- REPORT + CHAT -->
       <div id="report-chat-container" style="display:none">
         <div class="report-chat-wrap">
-          <!-- LEFT: RCA Report -->
+
+          <!-- LEFT: Report -->
           <div id="rout"></div>
-          <!-- RIGHT: Chat Panel -->
+
+          <!-- RIGHT: Chat -->
           <div class="chat-panel" id="chat-panel">
-            <div class="chat-header">
-              <span style="font-size:15px">💬</span>
-              <span class="chat-header-title">Incident Assistant</span>
-              <span class="chat-header-sub" id="chat-inc-label"></span>
-            </div>
-            <div class="chat-quick-row">
-              <button class="quick-btn" onclick="quickChat('Generate a detailed 5 Whys analysis for this incident in numbered format.')">5 Whys</button>
-              <button class="quick-btn" onclick="quickChat('Generate 5 investigation questions I should ask in the MIR call.')">MIR Questions</button>
-              <button class="quick-btn" onclick="quickChat('Write a 3-sentence executive summary for senior leadership.')">Exec Summary</button>
-              <button class="quick-btn" onclick="quickChat('Format all corrective and preventive actions as a table: Action | Owner | Due Date | Status')">Actions Table</button>
-              <button class="quick-btn" onclick="quickChat('Rewrite the root cause in clearer language suitable for a management report.')">Reword Root Cause</button>
-              <button class="quick-btn" onclick="quickChat('Based on similar past incidents, what systemic patterns exist and what single fix addresses all of them?')">Patterns</button>
-            </div>
-            <div class="chat-messages" id="chat-messages">
-              <div class="chat-msg assistant">
-                <div class="chat-bubble">👋 I have full context of this incident and RCA.<br><br>Ask me anything — 5 Whys, MIR questions, reword sections, executive summary, action tables, or patterns across similar incidents.</div>
+            <div class="chat-head">
+              <div class="chat-head-avatar">💬</div>
+              <div>
+                <div class="chat-head-title">Incident Assistant</div>
+                <div class="chat-head-sub" id="chat-inc-label">Ready</div>
               </div>
             </div>
-            <div class="chat-suggestions" id="chat-sugg" style="display:none"></div>
-            <div class="chat-input-area">
+            <div class="chat-quick">
+              <button class="qbtn" onclick="quickChat('Generate a detailed 5 Whys analysis for this incident in numbered format.')">5 Whys</button>
+              <button class="qbtn" onclick="quickChat('Generate 5 investigation questions for the MIR call.')">MIR Questions</button>
+              <button class="qbtn" onclick="quickChat('Write a 3-sentence executive summary for senior leadership.')">Exec Summary</button>
+              <button class="qbtn" onclick="quickChat('Format all corrective and preventive actions as a table: Action | Owner | Due Date | Status')">Actions Table</button>
+              <button class="qbtn" onclick="quickChat('Rewrite the root cause in clearer language for a management report.')">Reword</button>
+              <button class="qbtn" onclick="quickChat('What systemic patterns exist across similar past incidents, and what single fix addresses all of them?')">Patterns</button>
+            </div>
+            <div class="chat-msgs" id="chat-messages">
+              <div class="chat-msg assistant">
+                <div class="chat-bubble">👋 I have full context of this incident. Ask me anything — 5 Whys, MIR questions, executive summary, reword any section, or action tables.</div>
+              </div>
+            </div>
+            <div class="chat-sugg" id="chat-sugg" style="display:none"></div>
+            <div class="chat-input-row">
               <textarea id="chat-input" placeholder="Ask anything about this incident..." rows="1" onkeydown="chatKeydown(event)" oninput="autoResizeChat(this)"></textarea>
-              <button class="chat-send" id="chat-send-btn" onclick="sendChat()">
+              <button class="chat-send-btn" id="chat-send-btn" onclick="sendChat()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>
               </button>
             </div>
@@ -350,30 +607,28 @@
       </div>
     </div>
 
-    <!-- ═══ VIEW: REPORTS ═══ -->
+    <!-- ═══ REPORTS ═══ -->
     <div class="view" id="view-reports">
       <div class="phead">
         <div class="peyebrow">PostgreSQL</div>
         <div class="ptitle">All RCA Reports</div>
-        <div class="psub">All reports saved to the database. Click any row to view the full analysis.</div>
+        <div class="psub">Click any row to view the full analysis and chat about it.</div>
       </div>
       <div class="sgrid4">
         <div class="stcard"><div class="stval" id="st-total">—</div><div class="stlbl">Total Reports</div></div>
         <div class="stcard"><div class="stval" id="st-done" style="color:var(--green)">—</div><div class="stlbl">Completed</div></div>
         <div class="stcard"><div class="stval" id="st-p1" style="color:var(--p1)">—</div><div class="stlbl">P1 Critical</div></div>
-        <div class="stcard"><div class="stval" id="st-conf" style="color:var(--accent)">—</div><div class="stlbl">Avg Confidence</div></div>
+        <div class="stcard"><div class="stval" id="st-conf" style="color:var(--violet)">—</div><div class="stlbl">Avg Confidence</div></div>
       </div>
-      <div id="rlist" class="rlist">
-        <div class="empty"><div class="eicon">📋</div>No reports yet. Analyze an incident first.</div>
-      </div>
+      <div id="rlist" class="rlist"><div class="empty"><div class="eicon">📋</div>No reports yet.</div></div>
     </div>
 
-    <!-- ═══ VIEW: UPLOAD / PASTE ═══ -->
+    <!-- ═══ UPLOAD / PASTE ═══ -->
     <div class="view" id="view-upload">
       <div class="phead">
         <div class="peyebrow">Ingest</div>
-        <div class="ptitle">Upload or Paste Incident</div>
-        <div class="psub">FedEx MI Excel auto-fills all fields. PDF extracts text. Paste directly from Teams or email.</div>
+        <div class="ptitle">Upload or Paste</div>
+        <div class="psub">FedEx MI Excel auto-fills all fields. PDF extracts text. Paste from Teams or email.</div>
       </div>
       <div class="card">
         <div class="tabs">
@@ -381,52 +636,31 @@
           <div class="tab" data-t="pdf">📄 PDF</div>
           <div class="tab" data-t="paste">✏️ Paste Text</div>
         </div>
-
-        <!-- Excel tab -->
         <div class="tabpanel active" id="tp-excel">
-          <div class="dzone" id="dz-excel"
-            onclick="document.getElementById('fi-excel').click()"
-            ondragover="event.preventDefault();this.classList.add('over')"
-            ondragleave="this.classList.remove('over')"
-            ondrop="dropFile(event,'excel')">
-            <div class="dicon">📊</div>
-            <div class="dtext"><strong>Click or drag your FedEx MI Excel file here</strong></div>
-            <div class="dtext" style="font-size:11px;margin-top:3px">.xlsx only · Auto-extracts all fields</div>
+          <div class="dzone" id="dz-excel" onclick="document.getElementById('fi-excel').click()" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="dropFile(event,'excel')">
+            <div class="dzone-icon">📊</div>
+            <div class="dzone-text"><strong>Click or drag your FedEx MI Excel here</strong></div>
+            <div class="dzone-text" style="font-size:11px;margin-top:3px">.xlsx only · Auto-extracts all fields</div>
           </div>
           <input type="file" id="fi-excel" accept=".xlsx,.xls" style="display:none" onchange="handleExcel(event)"/>
-          <div id="excel-preview" style="margin-top:10px"></div>
-          <div id="excel-actions" style="margin-top:10px;display:none">
+          <div id="excel-preview"></div>
+          <div id="excel-actions" style="margin-top:12px;display:none">
             <button class="btn btn-primary" onclick="analyzeFromExcel()">⚡ Run RCA on This Incident</button>
-            <button class="btn btn-ghost" style="margin-left:8px" onclick="populateForm()">→ Open in Form (edit first)</button>
+            <button class="btn btn-ghost" style="margin-left:8px" onclick="populateForm()">→ Edit in Form First</button>
           </div>
         </div>
-
-        <!-- PDF tab -->
         <div class="tabpanel" id="tp-pdf">
-          <div class="dzone" id="dz-pdf"
-            onclick="document.getElementById('fi-pdf').click()"
-            ondragover="event.preventDefault();this.classList.add('over')"
-            ondragleave="this.classList.remove('over')"
-            ondrop="dropFile(event,'pdf')">
-            <div class="dicon">📄</div>
-            <div class="dtext"><strong>Click or drag a PDF incident report</strong></div>
-            <div class="dtext" style="font-size:11px;margin-top:3px">.pdf only · Max 10MB</div>
+          <div class="dzone" id="dz-pdf" onclick="document.getElementById('fi-pdf').click()" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="dropFile(event,'pdf')">
+            <div class="dzone-icon">📄</div>
+            <div class="dzone-text"><strong>Click or drag a PDF incident report</strong></div>
+            <div class="dzone-text" style="font-size:11px;margin-top:3px">.pdf only · Max 10MB</div>
           </div>
           <input type="file" id="fi-pdf" accept=".pdf" style="display:none" onchange="handlePDF(event)"/>
           <div id="pdf-status" style="margin-top:10px"></div>
         </div>
-
-        <!-- Paste tab -->
         <div class="tabpanel" id="tp-paste">
-          <div class="paste-wrap">
-            <label>Paste incident details from Teams, email, or any chat — any format</label>
-            <textarea id="paste-text" placeholder="Paste here — examples:
-
-• Teams message: 'Hi team, we have a P2 outage on payment-svc...'
-• Email thread: copy the whole email body
-• Structured fields: INC: 12345, Severity: P1, Issue: ...
-• Or anything else — the AI will extract the key information"></textarea>
-          </div>
+          <label style="margin-bottom:6px;display:block">Paste from Teams, email, or any chat</label>
+          <textarea id="paste-text" placeholder="Paste here — any format works. Teams message, email thread, structured fields, anything. The AI will extract the key information."></textarea>
           <div style="margin-top:10px;display:flex;gap:8px">
             <button class="btn btn-primary" onclick="analyzePaste()">⚡ Analyze Pasted Text</button>
             <button class="btn btn-ghost" onclick="document.getElementById('paste-text').value=''">Clear</button>
@@ -435,29 +669,25 @@
       </div>
     </div>
 
-    <!-- ═══ VIEW: SEARCH DB ═══ -->
+    <!-- ═══ SEARCH DB ═══ -->
     <div class="view" id="view-searchdb">
       <div class="phead">
         <div class="peyebrow">PostgreSQL + ChromaDB</div>
         <div class="ptitle">Search DB</div>
-        <div class="psub">Search past incidents by keyword, INC number, or meaning. Results grouped by root cause category.</div>
+        <div class="psub">Search past reports by INC number, system, keyword, or meaning. Results grouped by root cause category.</div>
       </div>
-
       <div class="card">
         <div style="display:flex;gap:8px">
-          <input id="sq" type="text" placeholder="Search by INC number, system, keyword, or describe the issue..."
-            style="flex:1" onkeydown="if(event.key==='Enter')searchDB()"/>
+          <input id="sq" type="text" placeholder="INC number, system name, or describe the issue..." style="flex:1" onkeydown="if(event.key==='Enter')searchDB()"/>
           <button class="btn btn-primary" onclick="searchDB()">Search</button>
         </div>
-        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-ghost" style="font-size:11px" onclick="setQ('database connection');searchDB()">database connection</button>
-          <button class="btn btn-ghost" style="font-size:11px" onclick="setQ('firewall change');searchDB()">firewall change</button>
-          <button class="btn btn-ghost" style="font-size:11px" onclick="setQ('Citrix');searchDB()">Citrix</button>
-          <button class="btn btn-ghost" style="font-size:11px" onclick="setQ('network outage');searchDB()">network outage</button>
-          <button class="btn btn-ghost" style="font-size:11px" onclick="loadBuckets()">Show all by category</button>
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-ghost" style="font-size:11px;padding:5px 12px" onclick="setQ('database connection');searchDB()">database connection</button>
+          <button class="btn btn-ghost" style="font-size:11px;padding:5px 12px" onclick="setQ('firewall');searchDB()">firewall</button>
+          <button class="btn btn-ghost" style="font-size:11px;padding:5px 12px" onclick="setQ('Citrix');searchDB()">Citrix</button>
+          <button class="btn btn-ghost" style="font-size:11px;padding:5px 12px" onclick="loadBuckets()">Show all by category</button>
         </div>
       </div>
-
       <div id="search-results"></div>
     </div>
 
@@ -468,10 +698,9 @@
 
 <script>
 const API = (location.hostname==='localhost'||location.hostname==='127.0.0.1') ? 'http://localhost:8000' : '';
-let sev = 'P3';
-let excelData = null;
+let sev='P3', currentReport=null, chatHistory=[], excelData=null;
 
-// ── NAV ────────────────────────────────────────────────────
+// ── NAV ──────────────────────────────────────────────────
 document.querySelectorAll('.nitem').forEach(n=>{
   n.onclick=()=>{
     document.querySelectorAll('.nitem').forEach(x=>x.classList.remove('active'));
@@ -482,8 +711,6 @@ document.querySelectorAll('.nitem').forEach(n=>{
     if(n.dataset.v==='searchdb') loadBuckets();
   };
 });
-
-// ── TABS (upload view) ─────────────────────────────────────
 document.querySelectorAll('.tab').forEach(t=>{
   t.onclick=()=>{
     document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
@@ -492,8 +719,6 @@ document.querySelectorAll('.tab').forEach(t=>{
     document.getElementById('tp-'+t.dataset.t).classList.add('active');
   };
 });
-
-// ── SEVERITY ───────────────────────────────────────────────
 document.querySelectorAll('.sevpill').forEach(p=>{
   p.onclick=()=>{
     document.querySelectorAll('.sevpill').forEach(x=>x.classList.remove('sel'));
@@ -501,25 +726,29 @@ document.querySelectorAll('.sevpill').forEach(p=>{
   };
 });
 
-// ── HEALTH ─────────────────────────────────────────────────
+// ── HEALTH ───────────────────────────────────────────────
 async function checkHealth(){
   try{
     const d=await(await fetch(`${API}/health`)).json();
-    document.getElementById('dot').className='dot ok';
-    document.getElementById('slabel').textContent=`${d.llm_provider.toUpperCase()} · DB:${d.database_connected?'✓':'✗'} · KB:${d.chromadb_connected?'✓':'✗'}`;
+    const llm=d.llm_provider?.toUpperCase()||'LLM';
+    document.getElementById('dot-llm').className='sdot ok';
+    document.getElementById('lbl-llm').textContent=llm;
+    document.getElementById('dot-db').className='sdot '+(d.database_connected?'ok':'err');
+    document.getElementById('lbl-db').textContent='DB';
+    document.getElementById('dot-kb').className='sdot '+(d.chromadb_connected?'ok':'err');
+    document.getElementById('lbl-kb').textContent='KB';
   }catch{
-    document.getElementById('dot').className='dot err';
-    document.getElementById('slabel').textContent='API offline';
+    ['dot-llm','dot-db','dot-kb'].forEach(id=>document.getElementById(id).className='sdot err');
   }
 }
 checkHealth(); setInterval(checkHealth,30000);
 
-// ── ANALYZE (from form) ────────────────────────────────────
+// ── ANALYZE ───────────────────────────────────────────────
 async function analyze(){
   const title=document.getElementById('f-title').value.trim();
   const desc=document.getElementById('f-desc').value.trim();
-  if(title.length<5){toast('Enter a title (min 5 chars)','e');return;}
-  if(desc.length<20){toast('Enter a description (min 20 chars)','e');return;}
+  if(title.length<5){toast('Title must be at least 5 characters','e');return;}
+  if(desc.length<20){toast('Description must be at least 20 characters','e');return;}
   const systems=document.getElementById('f-systems').value.split(',').map(s=>s.trim()).filter(Boolean);
   const payload={incident:{title,description:desc,severity:sev,affected_systems:systems,
     incident_timeline:document.getElementById('f-timeline').value.trim()||null,
@@ -530,7 +759,7 @@ async function analyze(){
 
 async function runAnalysis(payload){
   document.getElementById('fcard').style.display='none';
-  document.getElementById('rout').classList.remove('show');
+  document.getElementById('report-chat-container').style.display='none';
   const loader=document.getElementById('loader');
   loader.classList.add('show');
   const steps=['s1','s2','s3','s4','s5','s6','s7'];
@@ -554,73 +783,130 @@ async function runAnalysis(payload){
   }
 }
 
-// ── RENDER REPORT ──────────────────────────────────────────
-let currentReport = null;  // Store report for chat context
-let chatHistory = [];      // Conversation history
+// ── STRIP MARKDOWN ────────────────────────────────────────
+function stripMarkdown(text){
+  if(!text) return '';
+  return text
+    .replace(/\*\*(.*?)\*\*/g,'$1')    // Remove bold **
+    .replace(/\*(.*?)\*/g,'$1')        // Remove italic *
+    .replace(/^#{1,6}\s+/gm,'')       // Remove headers
+    .replace(/^[-*]\s+/gm,'')         // Remove bullet markers
+    .replace(/^\d+\.\s+/gm,'')        // Remove numbered list
+    .trim();
+}
 
-function renderReport(report) {
-  if(!report)return;
-  currentReport = report;  // Save for chat
-  chatHistory = [];        // Reset chat for new report
+// ── RENDER REPORT ─────────────────────────────────────────
+function renderReport(report){
+  if(!report) return;
+  currentReport=report; chatHistory=[];
   const a=report.analysis||{};
   const sv=report.incident?.severity||'P3';
   const conf=Math.round((a.confidence_score||0)*100);
+
+  // Root cause — first paragraph only, no 5whys
+  const rootCauseRaw=stripMarkdown(a.root_cause||'');
+  // Take first meaningful paragraph (before "First Why" or numbered list)
+  const rootCausePara = rootCauseRaw.split(/\n\n|first why|1\./i)[0].trim();
+
+  // Contributing factors — first 3 only, clean
+  const factors=(a.contributing_factors||[]).slice(0,3).map(f=>stripMarkdown(f));
+
+  // Impact — plain text, no markdown headings
+  const impactClean=stripMarkdown(a.impact_assessment||'');
+
   const html=`
-  <div class="card">
-    <div class="rhead">
+  <div class="rca-report">
+    <div class="rca-report-header">
       <div>
-        <div class="rid">Incident <strong>${report.incident_id}</strong></div>
-        <div style="font-size:15px;font-weight:600;color:var(--hi);margin-top:3px">${report.incident?.title||''}</div>
+        <div class="rca-inc-id">${report.incident_id}</div>
+        <div class="rca-title">${report.incident?.title||'Incident Report'}</div>
       </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
-        <span class="sbadge sev-${sv}">${sv}</span>
-        <span class="spill ${report.status==='completed'?'sc':report.status==='failed'?'sf':'sa'}">${report.status}</span>
+      <div class="rca-badges">
+        <span class="sev-badge sev-${sv}">${sv}</span>
+        <span class="status-pill ${report.status==='completed'?'sc':report.status==='failed'?'sf':'sa'}">${report.status}</span>
       </div>
     </div>
-    <div class="slabel2">Summary</div>
-    <div class="stext">${a.incident_summary||'—'}</div><hr class="sdiv"/>
-    <div class="slabel2">Impact Assessment</div>
-    <div class="stext">${a.impact_assessment||'—'}</div><hr class="sdiv"/>
-    <div class="slabel2">Root Cause</div>
-    <div class="stext">${a.root_cause||'—'}</div><hr class="sdiv"/>
-    <div class="slabel2">Contributing Factors</div>
-    <div class="alist">${(a.contributing_factors||[]).map(f=>`<div class="aitem"><div class="adot da"></div>${f}</div>`).join('')||'<div class="stext" style="color:var(--dim)">None identified</div>'}</div><hr class="sdiv"/>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
-      <div><div class="slabel2">Immediate Actions</div><div class="alist">${(a.immediate_actions_taken||[]).map(i=>`<div class="aitem"><div class="adot db"></div>${i}</div>`).join('')||'—'}</div></div>
-      <div><div class="slabel2">Corrective Actions</div><div class="alist">${(a.corrective_actions||[]).map(c=>`<div class="aitem"><div class="adot dg"></div>${c}</div>`).join('')||'—'}</div></div>
-    </div><hr class="sdiv"/>
-    <div class="slabel2">Preventive Measures</div>
-    <div class="alist">${(a.preventive_measures||[]).map(p=>`<div class="aitem"><div class="adot dg"></div>${p}</div>`).join('')||'—'}</div><hr class="sdiv"/>
-    <div class="slabel2">Lessons Learned</div>
-    <div class="stext">${a.lessons_learned||'—'}</div>
-    ${(a.similar_incidents||[]).length?`<hr class="sdiv"/><div class="slabel2">Similar Past Incidents (ChromaDB)</div><div>${(a.similar_incidents||[]).map(s=>`<span class="schip">${s}</span>`).join('')}</div>`:''}
-    <hr class="sdiv"/>
-    <div style="display:flex;align-items:center;justify-content:space-between">
-      <div><div class="slabel2" style="margin-bottom:4px">AI Confidence</div><div class="cbar" style="width:180px"><div class="cfill" style="width:${conf}%"></div></div></div>
-      <div style="font-family:var(--mono);font-size:22px;color:var(--hi)">${conf}%</div>
+    <div class="rca-sections">
+
+      <div class="rca-section">
+        <div class="rca-section-label">Summary</div>
+        <div class="rca-section-text">${stripMarkdown(a.incident_summary||'Not available')}</div>
+      </div>
+
+      <div class="rca-section">
+        <div class="rca-section-label">Impact Assessment</div>
+        <div class="rca-section-text">${impactClean||'Not available'}</div>
+      </div>
+
+      <div class="rca-section">
+        <div class="rca-section-label">Root Cause</div>
+        <div class="rca-section-text" style="margin-bottom:12px">${rootCausePara||'Not identified'}</div>
+        ${factors.length?`
+        <div class="rca-key-factors">
+          ${factors.map((f,i)=>`<div class="rca-factor"><div class="rca-factor-num">${i+1}</div>${f}</div>`).join('')}
+        </div>
+        `:''}
+        <div style="font-size:11px;color:var(--c-dim);margin-top:10px;font-family:var(--mono)">
+          → Use the chat panel to run 5 Whys on this root cause
+        </div>
+      </div>
+
+      <div class="rca-section">
+        <div class="rca-section-grid">
+          <div>
+            <div class="rca-section-label">Immediate Actions</div>
+            <div class="rca-bullets">
+              ${(a.immediate_actions_taken||[]).map(i=>`<div class="rca-bullet"><div class="rca-bullet-dot bd-violet"></div>${stripMarkdown(i)}</div>`).join('')||'<span style="color:var(--c-dim);font-size:13px">None recorded</span>'}
+            </div>
+          </div>
+          <div>
+            <div class="rca-section-label">Corrective Actions</div>
+            <div class="rca-bullets">
+              ${(a.corrective_actions||[]).map(c=>`<div class="rca-bullet"><div class="rca-bullet-dot bd-green"></div>${stripMarkdown(c)}</div>`).join('')||'<span style="color:var(--c-dim);font-size:13px">None identified</span>'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rca-section">
+        <div class="rca-section-label">Preventive Measures</div>
+        <div class="rca-bullets">
+          ${(a.preventive_measures||[]).map(p=>`<div class="rca-bullet"><div class="rca-bullet-dot bd-amber"></div>${stripMarkdown(p)}</div>`).join('')||'<span style="color:var(--c-dim);font-size:13px">None identified</span>'}
+        </div>
+      </div>
+
+      <div class="rca-section">
+        <div class="rca-section-label">Lessons Learned</div>
+        <div class="rca-section-text">${stripMarkdown(a.lessons_learned||'Not available')}</div>
+      </div>
+
+      ${(a.similar_incidents||[]).length?`
+      <div class="rca-section">
+        <div class="rca-section-label">Similar Past Incidents</div>
+        <div class="similar-chips">${(a.similar_incidents||[]).map(s=>`<span class="schip">${s}</span>`).join('')}</div>
+      </div>`:''
+      }
+
+      <div class="rca-section">
+        <div class="rca-section-label">AI Confidence</div>
+        <div class="conf-row">
+          <div class="conf-bar"><div class="conf-fill" style="width:${conf}%"></div></div>
+          <div class="conf-val">${conf}%</div>
+        </div>
+      </div>
+
     </div>
   </div>
-  <button class="btn btn-ghost" onclick="resetForm()" style="margin-top:8px">← New Analysis</button>`;
+  <button class="btn btn-ghost" onclick="resetForm()" style="margin-top:10px">← New Analysis</button>`;
 
-  // Show report in the left column
-  document.getElementById('rout').innerHTML = html;
-
-  // Show the two-column container (report + chat)
-  document.getElementById('fcard').style.display='none';
+  document.getElementById('rout').innerHTML=html;
   document.getElementById('report-chat-container').style.display='block';
-
-  // Set chat label
-  document.getElementById('chat-inc-label').textContent = report.incident_id;
-
-  // Reset chat to welcome message
-  document.getElementById('chat-messages').innerHTML = `
+  document.getElementById('chat-inc-label').textContent=report.incident_id;
+  document.getElementById('chat-messages').innerHTML=`
     <div class="chat-msg assistant">
-      <div class="chat-bubble">
-        👋 I have full context of <strong>${report.incident?.title||'this incident'}</strong>.<br><br>
-        Use the quick buttons above or ask me anything — 5 Whys, MIR questions, reword sections, executive summary, action tables, or patterns.
-      </div>
+      <div class="chat-bubble">👋 I have full context of <strong>${report.incident?.title||'this incident'}</strong>.<br><br>Use the quick buttons or ask me anything — 5 Whys, MIR questions, executive summary, reword sections, or action tables.</div>
     </div>`;
-  chatHistory = [];
+  chatHistory=[];
 }
 
 function resetForm(){
@@ -631,150 +917,68 @@ function resetForm(){
   ['s1','s2','s3','s4','s5','s6','s7'].forEach(s=>document.getElementById(s).classList.remove('run','done'));
 }
 
-// ── CHAT FUNCTIONS ─────────────────────────────────────────
-function quickChat(message){
-  document.getElementById('chat-input').value = message;
-  sendChat();
-}
-
-function chatKeydown(e){
-  if(e.key==='Enter' && !e.shiftKey){
-    e.preventDefault();
-    sendChat();
-  }
-}
-
-function autoResizeChat(el){
-  el.style.height='auto';
-  el.style.height=Math.min(el.scrollHeight,100)+'px';
-}
+// ── CHAT ─────────────────────────────────────────────────
+let chatCurrentReport=null;
+function quickChat(msg){document.getElementById('chat-input').value=msg;sendChat();}
+function chatKeydown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();}}
+function autoResizeChat(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,110)+'px';}
 
 async function sendChat(){
   const input=document.getElementById('chat-input');
-  const message=input.value.trim();
-  if(!message)return;
-  if(!currentReport){toast('Run an RCA analysis first, then chat about it','e');return;}
-
-  // Add user message to UI
-  addChatMessage('user', message);
-  input.value='';
-  input.style.height='auto';
-
-  // Add to history
-  chatHistory.push({role:'user', content:message});
-
-  // Show thinking indicator
-  const thinkId = addThinking();
+  const msg=input.value.trim();
+  if(!msg)return;
+  if(!currentReport){toast('Run an RCA analysis first','e');return;}
+  addChatMsg('user',msg); input.value=''; input.style.height='auto';
+  chatHistory.push({role:'user',content:msg});
+  const tid=addThinking();
   document.getElementById('chat-send-btn').disabled=true;
-
-  // Hide suggestions
   document.getElementById('chat-sugg').style.display='none';
-
   try{
-    const r=await fetch(`${API}/api/v1/chat/message`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        incident_id: currentReport.incident_id,
-        message: message,
-        history: chatHistory.slice(-10), // Last 10 messages
-        report_context: currentReport
-      })
-    });
-    const data=await r.json();
-    if(!r.ok) throw new Error(data.detail||'Chat failed');
-
-    // Remove thinking, add reply
-    removeThinking(thinkId);
-    const reply = data.reply || 'No response';
-    addChatMessage('assistant', reply);
-
-    // Add to history
-    chatHistory.push({role:'assistant', content:reply});
-
-    // Show suggestions
-    if(data.suggestions && data.suggestions.length){
-      const sugg=document.getElementById('chat-sugg');
-      sugg.style.display='flex';
-      sugg.innerHTML=data.suggestions.map(s=>
-        `<button class="suggestion-chip" onclick="quickChat('${s.replace(/'/g,"\\'")}')">→ ${s}</button>`
-      ).join('');
+    const r=await fetch(`${API}/api/v1/chat/message`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({incident_id:currentReport.incident_id,message:msg,history:chatHistory.slice(-10),report_context:currentReport})});
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.detail||'Chat failed');
+    removeThinking(tid);
+    addChatMsg('assistant',d.reply||'No response');
+    chatHistory.push({role:'assistant',content:d.reply});
+    if(d.suggestions?.length){
+      const s=document.getElementById('chat-sugg');
+      s.style.display='flex';
+      s.innerHTML=d.suggestions.map(x=>`<button class="sugg-chip" onclick="quickChat('${x.replace(/'/g,"\\'")}')">${x}</button>`).join('');
     }
-
-  }catch(e){
-    removeThinking(thinkId);
-    addChatMessage('assistant',`❌ Error: ${e.message}`);
-    toast('Chat error: '+e.message,'e');
-  }finally{
-    document.getElementById('chat-send-btn').disabled=false;
-  }
+  }catch(e){removeThinking(tid);addChatMsg('assistant','❌ Error: '+e.message);toast('Chat error','e');}
+  finally{document.getElementById('chat-send-btn').disabled=false;}
 }
 
-function addChatMessage(role, content){
+function addChatMsg(role,content){
   const msgs=document.getElementById('chat-messages');
   const time=new Date().toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit'});
-
-  // Convert markdown-ish to HTML
-  const html=formatChatContent(content);
-
   const div=document.createElement('div');
   div.className=`chat-msg ${role}`;
-  div.innerHTML=`
-    <div class="chat-bubble">${html}</div>
-    <div class="chat-time">${time}</div>`;
-  msgs.appendChild(div);
-  msgs.scrollTop=msgs.scrollHeight;
+  div.innerHTML=`<div class="chat-bubble">${formatChat(content)}</div><div class="chat-time">${time}</div>`;
+  msgs.appendChild(div); msgs.scrollTop=msgs.scrollHeight;
 }
 
-function formatChatContent(text){
-  // Convert markdown to HTML for chat bubbles
-  return text
-    // Code blocks
+function formatChat(t){
+  return t
     .replace(/```([\s\S]*?)```/g,'<pre>$1</pre>')
-    // Inline code
     .replace(/`([^`]+)`/g,'<code>$1</code>')
-    // Bold
     .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
-    // Tables (simple)
-    .replace(/\|(.+)\|/g,(match)=>{
-      const cells=match.split('|').filter(c=>c.trim()&&!c.match(/^[-:]+$/));
-      return '<div style="font-family:var(--mono);font-size:11px;background:rgba(0,0,0,.2);padding:4px 6px;border-radius:3px;margin:2px 0">'+cells.map(c=>`<span style="margin-right:12px">${c.trim()}</span>`).join('')+'</div>';
-    })
-    // Numbered lists
-    .replace(/^\d+\.\s+(.+)$/gm,'<div style="margin:3px 0">• $1</div>')
-    // Bullet lists
-    .replace(/^[-*]\s+(.+)$/gm,'<div style="margin:3px 0">• $1</div>')
-    // Line breaks
-    .replace(/\n\n/g,'<br><br>')
-    .replace(/\n/g,'<br>');
+    .replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>');
 }
 
 function addThinking(){
   const msgs=document.getElementById('chat-messages');
   const id='think-'+Date.now();
-  const div=document.createElement('div');
-  div.id=id;
-  div.className='chat-thinking';
-  div.innerHTML=`<div class="think-dots"><span></span><span></span><span></span></div> thinking...`;
-  msgs.appendChild(div);
-  msgs.scrollTop=msgs.scrollHeight;
-  return id;
+  const d=document.createElement('div');
+  d.id=id; d.className='chat-think';
+  d.innerHTML='<div class="think-dots"><span></span><span></span><span></span></div>thinking...';
+  msgs.appendChild(d); msgs.scrollTop=msgs.scrollHeight; return id;
 }
+function removeThinking(id){const el=document.getElementById(id);if(el)el.remove();}
 
-function removeThinking(id){
-  const el=document.getElementById(id);
-  if(el)el.remove();
-}
-
-// ── EXCEL UPLOAD ───────────────────────────────────────────
-function dropFile(e,type){
-  e.preventDefault();
-  document.getElementById('dz-'+type).classList.remove('over');
-  const f=e.dataTransfer.files[0];
-  if(!f)return;
-  if(type==='excel') processExcel(f);
-  else if(type==='pdf') processPDF(f);
-}
+// ── EXCEL ─────────────────────────────────────────────────
+function dropFile(e,type){e.preventDefault();document.getElementById('dz-'+type).classList.remove('over');const f=e.dataTransfer.files[0];if(f){if(type==='excel')processExcel(f);else processPDF(f);}}
 function handleExcel(e){processExcel(e.target.files[0]);}
 function handlePDF(e){processPDF(e.target.files[0]);}
 
@@ -783,37 +987,17 @@ async function processExcel(file){
   const fd=new FormData(); fd.append('file',file);
   try{
     const r=await fetch(`${API}/api/v1/rca/parse-excel`,{method:'POST',body:fd});
-    const data=await r.json();
-    if(!r.ok) throw new Error(data.detail||'Parse failed');
-    excelData=data.parsed;
-    showExcelPreview(data.parsed);
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.detail||'Parse failed');
+    excelData=d.parsed;
+    document.getElementById('excel-preview').innerHTML=`
+      <div class="excel-preview">
+        <div class="excel-preview-ok">✓ PARSED — ${d.parsed.incident_number}</div>
+        ${[['INC Number',d.parsed.incident_number],['Priority',d.parsed.priority],['Issue',d.parsed.issue_description],['Start Time',d.parsed.start_time],['Duration',d.parsed.duration],['Region',d.parsed.region],['MIM Lead',d.parsed.mim_lead],['Services',d.parsed.impacted_services]].filter(r=>r[1]).map(r=>`<div class="excel-row"><div class="excel-key">${r[0]}</div><div class="excel-val">${r[1]}</div></div>`).join('')}
+      </div>`;
     document.getElementById('excel-actions').style.display='block';
-    toast('Excel parsed — '+data.parsed.incident_number,'s');
-  }catch(e){
-    document.getElementById('excel-preview').innerHTML=`<div style="color:var(--red);font-size:12px;font-family:var(--mono)">Error: ${e.message}</div>`;
-    toast('Excel parse failed: '+e.message,'e');
-  }
-}
-
-function showExcelPreview(d){
-  const rows=[
-    ['INC Number', d.incident_number],
-    ['Priority', d.priority],
-    ['Title', d.issue_description],
-    ['Start Time', d.start_time],
-    ['Resolved Time', d.resolved_time],
-    ['Duration', d.duration],
-    ['Region / Location', `${d.region} / ${d.location}`],
-    ['Impacted Services', d.impacted_services],
-    ['MIM Lead', d.mim_lead],
-    ['Participants', (d.participants||[]).map(p=>p.team).join(', ')],
-    ['Timeline Entries', (d.timeline_entries||[]).length+' events'],
-  ];
-  document.getElementById('excel-preview').innerHTML=`
-    <div class="preview-strip">
-      <div style="font-family:var(--mono);font-size:10px;color:var(--green);margin-bottom:8px">✓ PARSED SUCCESSFULLY</div>
-      ${rows.filter(r=>r[1]).map(r=>`<div class="preview-row"><div class="preview-key">${r[0]}</div><div class="preview-val">${r[1]}</div></div>`).join('')}
-    </div>`;
+    toast(`Parsed ${d.parsed.incident_number}!`,'s');
+  }catch(e){toast('Parse failed: '+e.message,'e');}
 }
 
 function populateForm(){
@@ -824,30 +1008,20 @@ function populateForm(){
   document.getElementById('f-timeline').value=d.formatted_timeline||'';
   document.getElementById('f-systems').value=(d.affected_systems||[]).join(', ');
   document.getElementById('f-context').value=`CHG: ${d.any_change||'N/A'} | Region: ${d.region||''} | MIM: ${d.mim_lead||''}`;
-  // set severity
   const s=d.severity||'P3';
   document.querySelectorAll('.sevpill').forEach(p=>{p.classList.remove('sel');if(p.dataset.s===s)p.classList.add('sel');});
   sev=s;
-  // switch to analyze view
   document.querySelectorAll('.nitem').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
   document.querySelector('[data-v="analyze"]').classList.add('active');
   document.getElementById('view-analyze').classList.add('active');
-  toast('Form populated from Excel!','s');
+  toast('Form populated!','s');
 }
 
 async function analyzeFromExcel(){
-  if(!excelData){toast('No Excel data loaded','e');return;}
+  if(!excelData){toast('No Excel data','e');return;}
   const d=excelData;
-  const payload={incident:{
-    title:d.title,
-    description:d.full_description,
-    severity:d.severity||'P3',
-    affected_systems:d.affected_systems||[],
-    incident_timeline:d.formatted_timeline||null,
-    additional_context:`MIM: ${d.mim_lead} | Region: ${d.region} | Change: ${d.any_change}`
-  }};
-  // switch to analyze view
+  const payload={incident:{title:d.title,description:d.full_description,severity:d.severity||'P3',affected_systems:d.affected_systems||[],incident_timeline:d.formatted_timeline||null,additional_context:`MIM: ${d.mim_lead} | Region: ${d.region} | Change: ${d.any_change}`}};
   document.querySelectorAll('.nitem').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
   document.querySelector('[data-v="analyze"]').classList.add('active');
@@ -855,41 +1029,28 @@ async function analyzeFromExcel(){
   runAnalysis(payload);
 }
 
-// ── PDF UPLOAD ─────────────────────────────────────────────
 async function processPDF(file){
-  const status=document.getElementById('pdf-status');
-  status.innerHTML='<div style="color:var(--accent);font-family:var(--mono);font-size:12px">Reading PDF...</div>';
+  const s=document.getElementById('pdf-status');
+  s.innerHTML='<div style="color:var(--violet);font-family:var(--mono);font-size:12px">Reading PDF...</div>';
   const fd=new FormData(); fd.append('file',file);
   try{
     const r=await fetch(`${API}/api/v1/rca/upload`,{method:'POST',body:fd});
-    const data=await r.json();
-    if(!r.ok) throw new Error(data.detail);
-    status.innerHTML=`<div style="color:var(--green);font-size:12px;font-family:var(--mono)">✓ Analyzed — ${data.incident_id}</div>`;
-    // Switch to analyze view and show report
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.detail);
+    s.innerHTML=`<div style="color:var(--green);font-size:12px;font-family:var(--mono)">✓ Analyzed — ${d.incident_id}</div>`;
     document.querySelectorAll('.nitem').forEach(x=>x.classList.remove('active'));
     document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
     document.querySelector('[data-v="analyze"]').classList.add('active');
     document.getElementById('view-analyze').classList.add('active');
     document.getElementById('fcard').style.display='none';
-    renderReport(data.report);
-    toast('PDF analyzed!','s');
-  }catch(e){
-    status.innerHTML=`<div style="color:var(--red);font-size:12px;font-family:var(--mono)">Error: ${e.message}</div>`;
-    toast('PDF failed: '+e.message,'e');
-  }
+    renderReport(d.report); toast('PDF analyzed!','s');
+  }catch(e){s.innerHTML=`<div style="color:var(--red);font-size:12px">Error: ${e.message}</div>`;toast('PDF failed','e');}
 }
 
-// ── PASTE TEXT ─────────────────────────────────────────────
 async function analyzePaste(){
   const text=document.getElementById('paste-text').value.trim();
-  if(text.length<30){toast('Paste at least 30 characters of incident details','e');return;}
-  const payload={incident:{
-    title:'Incident from pasted text',
-    description:text,
-    severity:'P3',
-    affected_systems:[],
-    additional_context:'Source: pasted from Teams/email/chat'
-  }};
+  if(text.length<30){toast('Paste at least 30 characters','e');return;}
+  const payload={incident:{title:'Incident from pasted text',description:text,severity:'P3',affected_systems:[],additional_context:'Source: pasted from Teams/email'}};
   document.querySelectorAll('.nitem').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
   document.querySelector('[data-v="analyze"]').classList.add('active');
@@ -897,7 +1058,7 @@ async function analyzePaste(){
   runAnalysis(payload);
 }
 
-// ── LOAD REPORTS ───────────────────────────────────────────
+// ── REPORTS ───────────────────────────────────────────────
 async function loadReports(){
   try{
     const [rr,sr]=await Promise.all([fetch(`${API}/api/v1/rca/reports`),fetch(`${API}/api/v1/stats`)]);
@@ -909,16 +1070,16 @@ async function loadReports(){
     document.getElementById('st-conf').textContent=db.average_confidence_score?Math.round(db.average_confidence_score*100)+'%':'—';
     const list=document.getElementById('rlist');
     const reports=rd.reports||[];
-    if(!reports.length){list.innerHTML='<div class="empty"><div class="eicon">📋</div>No reports yet.</div>';return;}
+    if(!reports.length){list.innerHTML='<div class="empty"><div class="eicon">📋</div>No reports yet. Analyze an incident first.</div>';return;}
     list.innerHTML=reports.map(r=>`
       <div class="rrow" onclick="viewReport('${r.incident_id}')">
-        <div class="rrowid">${r.incident_id}</div>
-        <div class="rrowtitle">${r.incident?.title||'Untitled'}</div>
-        <span class="sbadge sev-${r.incident?.severity}">${r.incident?.severity}</span>
-        <span class="spill ${r.status==='completed'?'sc':r.status==='failed'?'sf':'sa'}">${r.status}</span>
-        <div class="rrowtime">${fmtDate(r.created_at)}</div>
+        <div class="rrow-id">${r.incident_id}</div>
+        <div class="rrow-title">${r.incident?.title||'Untitled'}</div>
+        <span class="sev-badge sev-${r.incident?.severity}">${r.incident?.severity}</span>
+        <span class="status-pill ${r.status==='completed'?'sc':'sa'}">${r.status}</span>
+        <div class="rrow-time">${fmtDate(r.created_at)}</div>
       </div>`).join('');
-  }catch(e){toast('Could not load reports','e');}
+  }catch{toast('Could not load reports','e');}
 }
 
 async function viewReport(id){
@@ -933,7 +1094,9 @@ async function viewReport(id){
   }catch{toast('Failed to load report','e');}
 }
 
-// ── SEARCH DB ──────────────────────────────────────────────
+// ── SEARCH DB ─────────────────────────────────────────────
+const BUCKET_COLORS={'Change/Deployment':'#ef4444','Network/Firewall':'#f59e0b','Infrastructure':'#6366f1','Configuration':'#10b981','Third Party':'#a78bfa','Unknown':'#64748b'};
+function categorizeCause(t){const s=(t||'').toLowerCase();if(s.includes('change')||s.includes('deploy')||s.includes('chg'))return'Change/Deployment';if(s.includes('network')||s.includes('firewall')||s.includes('routing'))return'Network/Firewall';if(s.includes('hardware')||s.includes('server')||s.includes('infra'))return'Infrastructure';if(s.includes('config')||s.includes('setting'))return'Configuration';if(s.includes('vendor')||s.includes('third'))return'Third Party';return'Unknown';}
 function setQ(q){document.getElementById('sq').value=q;}
 
 async function searchDB(){
@@ -942,60 +1105,22 @@ async function searchDB(){
   const res=document.getElementById('search-results');
   res.innerHTML='<div class="empty">Searching...</div>';
   try{
-    const [dbr,kbr]=await Promise.all([
-      fetch(`${API}/api/v1/rca/reports?limit=50`),
-      fetch(`${API}/api/v1/incidents/search?query=${encodeURIComponent(q)}&top_k=5`)
-    ]);
+    const [dbr,kbr]=await Promise.all([fetch(`${API}/api/v1/rca/reports?limit=50`),fetch(`${API}/api/v1/incidents/search?query=${encodeURIComponent(q)}&top_k=5`)]);
     const dbd=await dbr.json(); const kbd=await kbr.json();
-    const dbReports=(dbd.reports||[]).filter(r=>
-      JSON.stringify(r).toLowerCase().includes(q.toLowerCase())
-    );
+    const dbReports=(dbd.reports||[]).filter(r=>JSON.stringify(r).toLowerCase().includes(q.toLowerCase()));
     const kbResults=kbd.results||[];
-    if(!dbReports.length&&!kbResults.length){
-      res.innerHTML='<div class="empty"><div class="eicon">🔍</div>No results found. Try different keywords or load sample data.</div>';return;
-    }
+    if(!dbReports.length&&!kbResults.length){res.innerHTML='<div class="empty"><div class="eicon">🔍</div>No results found.</div>';return;}
     let html='';
     if(dbReports.length){
-      html+=`<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-bottom:8px;letter-spacing:1px">REPORTS (${dbReports.length} found in PostgreSQL)</div>`;
-      html+=dbReports.map(r=>`
-        <div class="rrow" onclick="viewReport('${r.incident_id}')" style="margin-bottom:6px">
-          <div class="rrowid">${r.incident_id}</div>
-          <div class="rrowtitle">${r.incident?.title||'Untitled'}</div>
-          <span class="sbadge sev-${r.incident?.severity}">${r.incident?.severity}</span>
-          <span class="spill ${r.status==='completed'?'sc':'sa'}">${r.status}</span>
-        </div>`).join('');
+      html+=`<div style="font-family:var(--mono);font-size:10px;color:var(--violet);margin-bottom:8px;letter-spacing:1px">${dbReports.length} REPORTS — POSTGRESQL</div>`;
+      html+=dbReports.map(r=>`<div class="rrow" onclick="viewReport('${r.incident_id}')" style="margin-bottom:6px"><div class="rrow-id">${r.incident_id}</div><div class="rrow-title">${r.incident?.title||'Untitled'}</div><span class="sev-badge sev-${r.incident?.severity}">${r.incident?.severity}</span><span class="status-pill ${r.status==='completed'?'sc':'sa'}">${r.status}</span></div>`).join('');
     }
     if(kbResults.length){
-      html+=`<div style="font-family:var(--mono);font-size:10px;color:var(--purple);margin:14px 0 8px;letter-spacing:1px">KNOWLEDGE BASE — Semantic matches (ChromaDB)</div>`;
-      html+=kbResults.map(r=>`
-        <div class="bucket" style="margin-bottom:6px">
-          <div style="font-size:13px;font-weight:500;color:var(--hi)">${r.title}</div>
-          <div style="font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:2px">${r.incident_id} · Severity: ${r.severity}</div>
-          <div class="sim-bar"><div class="sim-track"><div class="sim-fill" style="width:${r.similarity_score*100}%"></div></div><div class="sim-pct">${Math.round(r.similarity_score*100)}% match</div></div>
-        </div>`).join('');
+      html+=`<div style="font-family:var(--mono);font-size:10px;color:var(--purple);margin:14px 0 8px;letter-spacing:1px">KNOWLEDGE BASE — SEMANTIC MATCHES</div>`;
+      html+=kbResults.map(r=>`<div class="bucket"><div style="font-size:13px;font-weight:600;color:var(--c-hi)">${r.title}</div><div style="font-family:var(--mono);font-size:11px;color:var(--c-dim);margin-top:3px">${r.incident_id} · ${r.severity}</div><div class="sim-bar"><div class="sim-track"><div class="sim-fill" style="width:${r.similarity_score*100}%"></div></div><div class="sim-pct">${Math.round(r.similarity_score*100)}% match</div></div></div>`).join('');
     }
     res.innerHTML=html;
-  }catch(e){res.innerHTML='<div class="empty">Search failed — is the API running?</div>';}
-}
-
-// ROOT CAUSE COLOUR BUCKETS
-const BUCKET_COLORS={
-  'Change/Deployment':'#f25757',
-  'Network/Firewall':'#f5a623',
-  'Infrastructure/Hardware':'#4f8ef7',
-  'Configuration':'#2dd4a0',
-  'Third Party':'#a78bfa',
-  'Unknown':'#5a6176'
-};
-
-function categorizeCause(text){
-  const t=(text||'').toLowerCase();
-  if(t.includes('change')||t.includes('deploy')||t.includes('chg')) return 'Change/Deployment';
-  if(t.includes('network')||t.includes('firewall')||t.includes('routing')) return 'Network/Firewall';
-  if(t.includes('hardware')||t.includes('server')||t.includes('infrastructure')) return 'Infrastructure/Hardware';
-  if(t.includes('config')||t.includes('setting')||t.includes('parameter')) return 'Configuration';
-  if(t.includes('vendor')||t.includes('third party')||t.includes('external')) return 'Third Party';
-  return 'Unknown';
+  }catch{res.innerHTML='<div class="empty">Search failed</div>';}
 }
 
 async function loadBuckets(){
@@ -1005,65 +1130,33 @@ async function loadBuckets(){
     const r=await fetch(`${API}/api/v1/rca/reports?limit=100`);
     const d=await r.json();
     const reports=d.reports||[];
-    if(!reports.length){res.innerHTML='<div class="empty"><div class="eicon">🔍</div>No reports yet. Analyze some incidents first.</div>';return;}
-    // Group by root cause category
+    if(!reports.length){res.innerHTML='<div class="empty"><div class="eicon">🔍</div>No reports yet.</div>';return;}
     const buckets={};
-    reports.forEach(r=>{
-      const cat=categorizeCause(r.analysis?.root_cause||'');
-      if(!buckets[cat]) buckets[cat]=[];
-      buckets[cat].push(r);
-    });
-    let html=`<div style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:12px;letter-spacing:1px">${reports.length} REPORTS — GROUPED BY ROOT CAUSE CATEGORY</div>`;
+    reports.forEach(r=>{const cat=categorizeCause(r.analysis?.root_cause||'');if(!buckets[cat])buckets[cat]=[];buckets[cat].push(r);});
+    let html=`<div style="font-family:var(--mono);font-size:10px;color:var(--c-dim);margin-bottom:12px;letter-spacing:1px">${reports.length} REPORTS — GROUPED BY ROOT CAUSE CATEGORY</div>`;
     Object.entries(buckets).forEach(([cat,rpts])=>{
-      const col=BUCKET_COLORS[cat]||'#5a6176';
-      html+=`<div class="bucket">
-        <div class="bucket-header">
-          <div class="bball" style="background:${col};box-shadow:0 0 6px ${col}"></div>
-          <div class="btitle">${cat}</div>
-          <div class="bcount">${rpts.length} incident${rpts.length!==1?'s':''}</div>
-        </div>
-        <div class="bincs">
-          ${rpts.map(r=>`<div class="bchip" onclick="viewReport('${r.incident_id}')" title="${r.incident?.title||''}">${r.incident_id} · ${r.incident?.severity}</div>`).join('')}
-        </div>
-      </div>`;
+      const col=BUCKET_COLORS[cat]||'#64748b';
+      html+=`<div class="bucket"><div class="bucket-header"><div class="bball" style="background:${col};box-shadow:0 0 6px ${col}"></div><div class="btitle">${cat}</div><div class="bcount">${rpts.length} incident${rpts.length!==1?'s':''}</div></div><div class="bincs">${rpts.map(r=>`<div class="bchip" onclick="viewReport('${r.incident_id}')" title="${r.incident?.title||''}">${r.incident_id} · ${r.incident?.severity}</div>`).join('')}</div></div>`;
     });
     res.innerHTML=html;
-  }catch(e){res.innerHTML='<div class="empty">Could not load — is the API running?</div>';}
+  }catch{res.innerHTML='<div class="empty">Could not load</div>';}
 }
 
-// ── SEED ───────────────────────────────────────────────────
-async function seedKB(){
-  toast('Seeding knowledge base...','i');
-  try{
-    const d=await(await fetch(`${API}/api/v1/incidents/seed`,{method:'POST'})).json();
-    toast(d.message||'Seeded!','s'); checkHealth();
-  }catch{toast('Seed failed','e');}
-}
-
-// ── DEMO DATA ──────────────────────────────────────────────
+// ── SEED & HELPERS ────────────────────────────────────────
+async function seedKB(){toast('Seeding knowledge base...','i');try{const d=await(await fetch(`${API}/api/v1/incidents/seed`,{method:'POST'})).json();toast(d.message||'Seeded!','s');checkHealth();}catch{toast('Seed failed','e');}}
 function fillDemo(){
-  document.getElementById('f-title').value='INC035004340 (P3) — Citrix Connectivity Disrupted Due to Firewall Orchestrator Swap';
-  document.getElementById('f-desc').value='Multiple users across the EU region were unable to access apps hosted in Dublin datacenter. Citrix, ROCS, OMA and Gidwin were affected. Issue auto-resolved after 30 minutes. Root cause identified as firewall orchestrator swap under CHG1038029.';
-  document.getElementById('f-timeline').value='17:25 GMT — ITCC initiated bridge call\n17:30 GMT — Firewall team engaged\n17:45 GMT — CHG1038029 identified as suspect change\n18:25 GMT — Issue auto-resolved\n18:44 GMT — All services confirmed stable';
+  document.getElementById('f-title').value='INC035004340 (P4) — Citrix Connectivity Disrupted, Dublin DC';
+  document.getElementById('f-desc').value='Multiple users across the EU region unable to access apps hosted in Dublin datacenter. Citrix, ROCS, OMA and Gidwin affected. Issue auto-resolved after 30 minutes. Root cause identified as firewall orchestrator swap under CHG1038029.';
+  document.getElementById('f-timeline').value='17:25 GMT — ITCC initiated bridge call\n17:30 GMT — Firewall team engaged\n17:45 GMT — CHG1038029 identified as suspect\n18:25 GMT — Issue auto-resolved\n18:44 GMT — All services confirmed stable';
   document.getElementById('f-systems').value='Citrix, Firewall, ROCS, OMA, Gidwin, vCenter';
   document.getElementById('f-context').value='CHG1038029 — LCM Maestro hardware swap, Dublin DC. 21 child incidents raised.';
   document.querySelectorAll('.sevpill').forEach(p=>p.classList.remove('sel'));
-  document.querySelector('[data-s="P3"]').classList.add('sel'); sev='P3';
-  toast('Demo data filled!','i');
+  document.querySelector('[data-s="P4"]').classList.add('sel'); sev='P4';
+  toast('Demo data loaded','i');
 }
-
-function clearForm(){
-  ['f-title','f-desc','f-timeline','f-systems','f-context'].forEach(id=>document.getElementById(id).value='');
-}
-
-// ── HELPERS ────────────────────────────────────────────────
+function clearForm(){['f-title','f-desc','f-timeline','f-systems','f-context'].forEach(id=>document.getElementById(id).value='');}
 function fmtDate(iso){if(!iso)return'—';const d=new Date(iso);return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});}
-function toast(msg,type='i'){
-  const c=document.getElementById('toasts');
-  const t=document.createElement('div');
-  t.className=`toast toast-${type}`;t.textContent=msg;c.appendChild(t);
-  setTimeout(()=>t.remove(),4000);
-}
+function toast(msg,type='i'){const c=document.getElementById('toasts');const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.remove(),4000);}
 </script>
 </body>
 </html>
