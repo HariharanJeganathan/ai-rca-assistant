@@ -21,7 +21,6 @@ chromadb==0.5.3
 # ── PostgreSQL ─────────────────────────────────────────────
 asyncpg==0.29.0
 sqlalchemy[asyncio]==2.0.31
-alembic==1.13.1
 
 # ── Data / Files ───────────────────────────────────────────
 pydantic==2.7.4
