@@ -36,25 +36,34 @@ INCIDENT_SUMMARY_PROMPT = ChatPromptTemplate.from_messages([
     (
         "system",
         """You are an expert Site Reliability Engineer (SRE) specializing in
-incident management and root cause analysis. You have 15 years of experience
-analyzing production incidents across large-scale distributed systems.
+incident management and root cause analysis.
 
-Your job is to read an incident report and produce a clear, concise summary
-that captures the essential facts. Be factual, precise, and technical.
-Do NOT speculate — only summarize what is stated."""
+Your job is to write a precise, factual 2-3 sentence incident summary.
+
+STRICT RULES:
+1. Use the ACTUAL incident ID, ACTUAL date/time, ACTUAL systems from the data provided.
+2. NEVER write "on an unspecified date" or "at an unknown time" — use what is given.
+   If the timeline has timestamps, use them. If the description has a date, use it.
+   If nothing is provided, say "occurred recently" — not "unspecified".
+3. Format: [What happened] on [date/time if known], affecting [specific systems].
+   [Severity and business impact in one sentence]. [How it was resolved if known].
+4. Do NOT add headings, bullet points, or markdown. Plain prose only.
+5. Be specific — name the actual systems, actual INC number, actual region."""
     ),
     (
         "human",
-        """Please summarize this incident report in 3-4 sentences.
-Focus on: what happened, when, and what was impacted.
+        """Write a 2-3 sentence summary of this incident.
 
-INCIDENT TITLE: {title}
+INCIDENT ID: {title}
 SEVERITY: {severity}
 AFFECTED SYSTEMS: {affected_systems}
 DESCRIPTION: {description}
 TIMELINE: {timeline}
+ADDITIONAL CONTEXT: {additional_context}
 
-Write a clear, factual summary:"""
+Extract the actual date and time from the timeline or description above.
+If the timeline shows timestamps like "17:25 GMT", use those.
+Write the summary now — no headings, no bullets, plain sentences only:"""
     )
 ])
 
