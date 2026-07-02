@@ -180,7 +180,8 @@ class RCAAgent:
                 "severity": state["severity"],
                 "affected_systems": ", ".join(state["affected_systems"]) or "Not specified",
                 "description": state["description"],
-                "timeline": state["timeline"] or "No timeline provided"
+                "timeline": state["timeline"] or "No timeline provided",
+                "additional_context": state["additional_context"] or "Not provided"
             })
             state["incident_summary"] = summary.strip()
             logger.info(f"[RCAAgent] Summary complete ({len(summary)} chars)")
