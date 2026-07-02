@@ -1,7 +1,7 @@
 """
 rca_service.py — Business Logic Layer
-Updated: Graceful fallback when PostgreSQL is unavailable.
-Analysis works even without DB — uses in-memory store as fallback.
+Updated: PostgreSQL as primary store, ChromaDB auto-ingestion after RCA,
+         in-memory fallback when DB unavailable.
 """
 
 import logging
@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 class RCAService:
 
     def __init__(self):
-        # Always keep in-memory store as fallback
+        # In-memory fallback (used when PostgreSQL is unavailable)
         self._reports_store: dict = {}
         self._retriever: Optional[IncidentRetriever] = None
         self._agent = None
-        self._db_available = None  # None = not checked yet
+        self._db_available: Optional[bool] = None
         logger.info("[RCAService] Initialized")
 
     def _get_retriever(self) -> IncidentRetriever:
@@ -36,20 +36,19 @@ class RCAService:
             self._agent = get_rca_agent()
         return self._agent
 
-    async def _check_db(self) -> bool:
-        """Check if PostgreSQL is available. Cache result."""
-        if self._db_available is not None:
-            return self._db_available
+    async def _is_db_available(self) -> bool:
+        """Check PostgreSQL availability. Re-check each time (Supabase can recover)."""
         try:
             from db.database import check_database_connection
-            self._db_available = await check_database_connection()
+            result = await check_database_connection()
+            self._db_available = result
+            return result
         except Exception:
             self._db_available = False
-        logger.info(f"[RCAService] DB available: {self._db_available}")
-        return self._db_available
+            return False
 
     # ============================================================
-    # 1. ANALYZE INCIDENT — Full pipeline with DB fallback
+    # 1. ANALYZE INCIDENT
     # ============================================================
     async def analyze_incident(
         self,
@@ -57,7 +56,7 @@ class RCAService:
         incident: IncidentInput,
         llm_provider_override: Optional[str] = None
     ) -> RCAReport:
-        logger.info(f"[RCAService] Starting analysis: {incident_id}")
+        logger.info(f"[RCAService] Starting: {incident_id}")
 
         report = RCAReport(
             incident_id=incident_id,
@@ -67,28 +66,18 @@ class RCAService:
             updated_at=datetime.utcnow(),
             llm_provider_used=llm_provider_override or "groq"
         )
-
-        # Save to in-memory store always
         self._reports_store[incident_id] = report
 
-        # Try PostgreSQL too — but don't fail if unavailable
-        db_ok = await self._check_db()
+        # Save ANALYZING state to DB
+        db_ok = await self._is_db_available()
         if db_ok:
-            try:
-                from db.database import AsyncSessionLocal
-                from db.postgres import RCARepository
-                async with AsyncSessionLocal() as session:
-                    repo = RCARepository(session)
-                    await repo.create_report(report)
-                    await session.commit()
-            except Exception as e:
-                logger.warning(f"[RCAService] DB save failed (continuing anyway): {e}")
+            await self._db_save(report, create=True)
 
         try:
-            # ChromaDB RAG search
+            # Step 1: Search ChromaDB for similar incidents
             similar_incidents = await self._find_similar_incidents(incident)
 
-            # LangGraph AI agent
+            # Step 2: Run LangGraph agent
             analysis = await self._run_rca_agent(incident, similar_incidents)
 
             report.analysis = analysis
@@ -97,30 +86,61 @@ class RCAService:
             report.updated_at = datetime.utcnow()
             self._reports_store[incident_id] = report
 
-            # Try to update in PostgreSQL
+            # Step 3: Save completed report to DB
             if db_ok:
-                try:
-                    from db.database import AsyncSessionLocal
-                    from db.postgres import RCARepository
-                    async with AsyncSessionLocal() as session:
-                        repo = RCARepository(session)
-                        await repo.update_report(report)
-                        await session.commit()
-                except Exception as e:
-                    logger.warning(f"[RCAService] DB update failed (report still in memory): {e}")
+                await self._db_save(report, create=False)
 
-            logger.info(f"[RCAService] Analysis complete: {incident_id}")
+            # Step 4: Auto-ingest this incident into ChromaDB knowledge base
+            # So future similar incidents can find it!
+            await self._auto_ingest_to_kb(incident_id, incident, analysis)
+
+            logger.info(f"[RCAService] Complete: {incident_id}")
             return report
 
         except Exception as e:
             report.status = RCAStatus.FAILED
             report.updated_at = datetime.utcnow()
             self._reports_store[incident_id] = report
-            logger.error(f"[RCAService] Analysis failed {incident_id}: {e}")
+            if db_ok:
+                await self._db_save(report, create=False)
+            logger.error(f"[RCAService] Failed {incident_id}: {e}")
             raise
 
     # ============================================================
-    # 2. FIND SIMILAR INCIDENTS (ChromaDB)
+    # 2. AUTO-INGEST COMPLETED RCA INTO CHROMADB
+    # ============================================================
+    async def _auto_ingest_to_kb(
+        self,
+        incident_id: str,
+        incident: IncidentInput,
+        analysis: RCAAnalysis
+    ):
+        """
+        After every successful RCA, automatically add the incident to ChromaDB.
+        This means future similar incidents will find it in the knowledge base.
+        The KB grows with every RCA you run — getting smarter over time.
+        """
+        try:
+            retriever = self._get_retriever()
+            root_cause = analysis.root_cause if analysis else None
+            resolution = ". ".join(analysis.corrective_actions) if analysis and analysis.corrective_actions else None
+
+            success = await retriever.ingest(
+                incident_id=incident_id,
+                title=incident.title,
+                description=incident.description,
+                severity=incident.severity.value,
+                affected_systems=incident.affected_systems or [],
+                root_cause=root_cause,
+                resolution=resolution
+            )
+            if success:
+                logger.info(f"[RCAService] Auto-ingested {incident_id} into ChromaDB KB")
+        except Exception as e:
+            logger.warning(f"[RCAService] Auto-ingest to KB failed (non-critical): {e}")
+
+    # ============================================================
+    # 3. FIND SIMILAR INCIDENTS
     # ============================================================
     async def _find_similar_incidents(self, incident: IncidentInput) -> List[Dict]:
         try:
@@ -132,11 +152,11 @@ class RCAService:
             logger.info(f"[RCAService] Found {len(results)} similar incidents")
             return results
         except Exception as e:
-            logger.warning(f"[RCAService] ChromaDB search failed (continuing): {e}")
+            logger.warning(f"[RCAService] ChromaDB search failed: {e}")
             return []
 
     # ============================================================
-    # 3. RUN RCA AGENT (LangGraph)
+    # 4. RUN RCA AGENT
     # ============================================================
     async def _run_rca_agent(self, incident, similar_incidents) -> RCAAnalysis:
         logger.info("[RCAService] Running LangGraph agent...")
@@ -150,10 +170,31 @@ class RCAService:
         return analysis
 
     # ============================================================
-    # 4. GET REPORT — DB first, fallback to memory
+    # 5. DB SAVE HELPER
+    # ============================================================
+    async def _db_save(self, report: RCAReport, create: bool = True):
+        """Save or update a report in PostgreSQL."""
+        try:
+            from db.database import AsyncSessionLocal
+            from db.postgres import RCARepository
+            async with AsyncSessionLocal() as session:
+                repo = RCARepository(session)
+                if create:
+                    try:
+                        await repo.create_report(report)
+                    except ValueError:
+                        await repo.update_report(report)  # Already exists
+                else:
+                    await repo.update_report(report)
+                await session.commit()
+        except Exception as e:
+            logger.warning(f"[RCAService] DB save failed (using memory): {e}")
+
+    # ============================================================
+    # 6. GET REPORT — DB first, memory fallback
     # ============================================================
     async def get_report(self, incident_id: str) -> Optional[RCAReport]:
-        db_ok = await self._check_db()
+        db_ok = await self._is_db_available()
         if db_ok:
             try:
                 from db.database import AsyncSessionLocal
@@ -165,14 +206,13 @@ class RCAService:
                         return result
             except Exception as e:
                 logger.warning(f"[RCAService] DB get failed: {e}")
-        # Fallback to memory
         return self._reports_store.get(incident_id)
 
     # ============================================================
-    # 5. LIST REPORTS — DB first, fallback to memory
+    # 7. LIST REPORTS — DB first, memory fallback
     # ============================================================
     async def list_reports(self, skip=0, limit=10, status_filter=None, severity_filter=None):
-        db_ok = await self._check_db()
+        db_ok = await self._is_db_available()
         if db_ok:
             try:
                 from db.database import AsyncSessionLocal
@@ -183,7 +223,7 @@ class RCAService:
             except Exception as e:
                 logger.warning(f"[RCAService] DB list failed: {e}")
 
-        # Fallback to memory
+        # Memory fallback
         reports = list(self._reports_store.values())
         if status_filter:
             reports = [r for r in reports if r.status.value == status_filter]
@@ -192,10 +232,10 @@ class RCAService:
         return reports[skip:skip + limit], len(reports)
 
     # ============================================================
-    # 6. DELETE REPORT
+    # 8. DELETE REPORT
     # ============================================================
     async def delete_report(self, incident_id: str) -> bool:
-        db_ok = await self._check_db()
+        db_ok = await self._is_db_available()
         if db_ok:
             try:
                 from db.database import AsyncSessionLocal
@@ -204,20 +244,20 @@ class RCAService:
                     repo = RCARepository(session)
                     result = await repo.delete_report(incident_id)
                     await session.commit()
-                    return result
+                    if result:
+                        return True
             except Exception as e:
                 logger.warning(f"[RCAService] DB delete failed: {e}")
-
         if incident_id in self._reports_store:
             del self._reports_store[incident_id]
             return True
         return False
 
     # ============================================================
-    # 7. STATS
+    # 9. STATS
     # ============================================================
     async def get_report_stats(self) -> Dict[str, Any]:
-        db_ok = await self._check_db()
+        db_ok = await self._is_db_available()
         if db_ok:
             try:
                 from db.database import AsyncSessionLocal
@@ -227,19 +267,17 @@ class RCAService:
                     return await repo.get_stats()
             except Exception as e:
                 logger.warning(f"[RCAService] DB stats failed: {e}")
-
-        # Memory fallback stats
         reports = list(self._reports_store.values())
         return {
             "total_reports": len(reports),
-            "by_status": {"completed": len([r for r in reports if r.status == RCAStatus.COMPLETED])},
+            "by_status": {"completed": sum(1 for r in reports if r.status == RCAStatus.COMPLETED)},
             "by_severity": {},
             "average_confidence_score": 0.0,
-            "note": "Database not connected — showing in-memory stats"
+            "note": "Database not connected"
         }
 
     # ============================================================
-    # 8-10. Knowledge base operations
+    # 10. KNOWLEDGE BASE OPERATIONS
     # ============================================================
     async def ingest_incident(self, incident_id, incident, root_cause=None, resolution=None):
         retriever = self._get_retriever()
@@ -278,7 +316,7 @@ class RCAService:
                     if text:
                         text_parts.append(f"[Page {i+1}]\n{text}")
                 if not text_parts:
-                    raise ValueError("No text could be extracted from PDF.")
+                    raise ValueError("No text extracted from PDF.")
                 return "\n\n".join(text_parts)
             except ImportError:
                 raise RuntimeError("pypdf not installed.")
