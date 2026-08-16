@@ -554,8 +554,9 @@
 
       <!-- LOADER -->
       <div class="loader" id="loader">
-        <div class="ltext">AI agent running — 7 reasoning steps...</div>
+        <div class="ltext">New execution started — searching history + 7 reasoning steps...</div>
         <div class="lsteps">
+          <div class="lstep" id="s0"><div class="spin"></div>Searching historical incidents</div>
           <div class="lstep" id="s1"><div class="spin"></div>Summarizing incident</div>
           <div class="lstep" id="s2"><div class="spin"></div>Assessing impact</div>
           <div class="lstep" id="s3"><div class="spin"></div>Analyzing root cause (5 Whys)</div>
@@ -757,27 +758,52 @@ async function analyze(){
   runAnalysis(payload);
 }
 
+const LOADER_STEPS=['s0','s1','s2','s3','s4','s5','s6','s7'];
+
+// Every run — regardless of entry point (form, Excel, paste, or a retry
+// after a failed run) — must start from a completely clean loading state.
+// Without this, leftover 'run'/'done' classes from the previous execution
+// make a brand-new run look like it's continuing the old one.
+function resetLoaderSteps(){
+  LOADER_STEPS.forEach(s=>{
+    const el=document.getElementById(s);
+    if(el) el.classList.remove('run','done');
+  });
+}
+
+let analysisRunId=0;
+
 async function runAnalysis(payload){
+  const runId=++analysisRunId; // uniquely tags this execution
+  resetLoaderSteps();
   document.getElementById('fcard').style.display='none';
   document.getElementById('report-chat-container').style.display='none';
+  document.getElementById('rout').innerHTML='';
   const loader=document.getElementById('loader');
-  loader.classList.add('show');
-  const steps=['s1','s2','s3','s4','s5','s6','s7'];
+  loader.classList.remove('show'); void loader.offsetWidth; loader.classList.add('show');
   let si=0;
   const iv=setInterval(()=>{
-    if(si>0) document.getElementById(steps[si-1]).classList.replace('run','done');
-    if(si<steps.length){document.getElementById(steps[si]).classList.add('run');si++;}
+    if(runId!==analysisRunId){clearInterval(iv);return;} // a newer run superseded this one
+    if(si>0) document.getElementById(LOADER_STEPS[si-1]).classList.replace('run','done');
+    if(si<LOADER_STEPS.length){document.getElementById(LOADER_STEPS[si]).classList.add('run');si++;}
     else clearInterval(iv);
   },1900);
   try{
     const r=await fetch(`${API}/api/v1/rca/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(runId!==analysisRunId) return; // stale response from a superseded run — ignore
     clearInterval(iv);
-    steps.forEach(s=>{document.getElementById(s).classList.remove('run');document.getElementById(s).classList.add('done');});
+    LOADER_STEPS.forEach(s=>{document.getElementById(s).classList.remove('run');document.getElementById(s).classList.add('done');});
     const data=await r.json();
     if(!r.ok) throw new Error(data.detail||'Analysis failed');
-    setTimeout(()=>{loader.classList.remove('show');renderReport(data.report);toast('RCA complete!','s');},600);
+    setTimeout(()=>{
+      if(runId!==analysisRunId) return;
+      loader.classList.remove('show');renderReport(data.report);toast('RCA complete!','s');
+      if(data.report?.kb_ingested===true) toast('Incident stored in historical database','s');
+      else if(data.report?.kb_ingested===false) toast('Warning: incident was NOT stored in historical database','e');
+    },600);
   }catch(e){
-    clearInterval(iv);loader.classList.remove('show');
+    if(runId!==analysisRunId) return;
+    clearInterval(iv);loader.classList.remove('show');resetLoaderSteps();
     document.getElementById('fcard').style.display='';
     toast('Error: '+e.message,'e');
   }
@@ -793,6 +819,39 @@ function stripMarkdown(text){
     .replace(/^[-*]\s+/gm,'')         // Remove bullet markers
     .replace(/^\d+\.\s+/gm,'')        // Remove numbered list
     .trim();
+}
+
+// ── HISTORICAL SEARCH TRANSPARENCY ─────────────────────────
+// Always renders something honest about the historical search — never
+// silently omits the section just because no matches were found, and
+// never implies a search happened if it didn't actually execute.
+function renderHistorySection(a){
+  const matches=a.similar_incidents||[];
+  const performed=a.historical_search_performed;
+  const kbSize=a.historical_kb_size;
+  const err=a.historical_search_error;
+
+  if(err){
+    return `<div style="font-size:12px;color:var(--red);background:var(--red-lo);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:10px 12px;line-height:1.5">
+      ⚠️ Historical search failed (${err}). This RCA was generated from the current incident only — no historical context was available.
+    </div>`;
+  }
+
+  if(performed===true){
+    if(matches.length){
+      return `<div style="font-size:12px;color:var(--c-dim);margin-bottom:8px;font-family:var(--mono)">Searched ${kbSize??'?'} historical incident(s) — ${matches.length} relevant match(es) found:</div>
+        <div class="similar-chips">${matches.map(s=>`<span class="schip">${s}</span>`).join('')}</div>`;
+    }
+    return `<div style="font-size:12px;color:var(--c-dim);font-family:var(--mono)">Searched ${kbSize??'?'} historical incident(s) in the knowledge base — no relevant matches were identified. This RCA was generated from the current incident data only.</div>`;
+  }
+
+  // performed is null/undefined — e.g. report reloaded from the DB, where
+  // this run-time metadata isn't persisted. Fall back to whatever the
+  // stored analysis actually contains, without claiming a search ran.
+  if(matches.length){
+    return `<div class="similar-chips">${matches.map(s=>`<span class="schip">${s}</span>`).join('')}</div>`;
+  }
+  return `<div style="font-size:12px;color:var(--c-dim);font-family:var(--mono)">No historical search status recorded for this report.</div>`;
 }
 
 // ── RENDER REPORT ─────────────────────────────────────────
@@ -880,12 +939,10 @@ function renderReport(report){
         <div class="rca-section-text">${stripMarkdown(a.lessons_learned||'Not available')}</div>
       </div>
 
-      ${(a.similar_incidents||[]).length?`
       <div class="rca-section">
-        <div class="rca-section-label">Similar Past Incidents</div>
-        <div class="similar-chips">${(a.similar_incidents||[]).map(s=>`<span class="schip">${s}</span>`).join('')}</div>
-      </div>`:''
-      }
+        <div class="rca-section-label">Historical Incident Search</div>
+        ${renderHistorySection(a)}
+      </div>
 
       <div class="rca-section">
         <div class="rca-section-label">AI Confidence</div>
@@ -914,7 +971,7 @@ function resetForm(){
   document.getElementById('report-chat-container').style.display='none';
   document.getElementById('rout').innerHTML='';
   currentReport=null; chatHistory=[];
-  ['s1','s2','s3','s4','s5','s6','s7'].forEach(s=>document.getElementById(s).classList.remove('run','done'));
+  resetLoaderSteps();
 }
 
 // ── CHAT ─────────────────────────────────────────────────

@@ -53,8 +53,12 @@ services:
         value: all-MiniLM-L6-v2
 
       - key: CHROMA_PERSIST_PATH
-        value: /tmp/chroma    # Render's ephemeral storage (resets on restart)
-                              # For persistent KB, use ChromaDB Cloud later
+        value: /tmp/chroma    # Render free tier has no persistent disk, so this
+                              # resets on every restart/redeploy. That's OK: the
+                              # app rebuilds this index from PostgreSQL (which IS
+                              # persistent) on every startup — see
+                              # RCAService.reconcile_kb_from_db(), called from
+                              # main.py's lifespan handler.
 
       - key: DEBUG
         value: "false"        # Always false in production

@@ -167,6 +167,27 @@ class RCAAnalysis(BaseModel):
         description="AI confidence in the analysis (0.0 to 1.0)"
     )
 
+    # ------------------------------------------------------------
+    # Historical search transparency — always populated on a fresh
+    # analysis so the UI never has to guess whether history was
+    # actually searched. Not persisted to the DB, so these come back
+    # as None when a report is re-fetched later (see RCARepository) —
+    # that's expected: they describe the search that happened at
+    # generation time, not a durable property of the report.
+    # ------------------------------------------------------------
+    historical_search_performed: Optional[bool] = Field(
+        default=None,
+        description="Whether the historical incident search actually executed before RCA generation"
+    )
+    historical_kb_size: Optional[int] = Field(
+        default=None,
+        description="Number of historical incidents available in the knowledge base at search time"
+    )
+    historical_search_error: Optional[str] = Field(
+        default=None,
+        description="Set if the historical search failed to execute (null if it ran successfully)"
+    )
+
 
 # ============================================================
 # Full RCA Report — stored in PostgreSQL
@@ -188,6 +209,11 @@ class RCAReport(BaseModel):
 
     # The AI-generated analysis (None until analysis is complete)
     analysis: Optional[RCAAnalysis] = None
+
+    # Whether this incident was actually persisted to the historical
+    # knowledge base after analysis. None when unknown (e.g. re-fetched
+    # from DB later, rather than the response of a fresh /analyze call).
+    kb_ingested: Optional[bool] = None
 
     # Timestamps
     created_at: Optional[datetime] = None
