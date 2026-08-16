@@ -3,27 +3,12 @@ rca_chain.py — LangChain Prompts & Chains
 ==========================================
 This file contains all the PROMPTS used by the LangGraph agent.
 
-WHAT IS A PROMPT TEMPLATE?
-  Instead of hardcoding text, we use templates with placeholders.
-  Like a mail-merge in Word — same template, different values each time.
-
-  Example:
-    Template: "Analyze this incident: {incident_title}"
-    Filled:   "Analyze this incident: Payment service down"
-
-WHY SEPARATE PROMPTS FROM AGENT LOGIC?
-  - Easy to improve prompts without touching agent code
-  - Easy to A/B test different prompts
-  - Keeps the agent file clean and readable
-  - Senior engineers always separate concerns like this
-
-CHAIN = Prompt + LLM + Output Parser connected together
-  Input → Prompt Template → LLM → Parse Output → Result
+Prompts remain separate from agent logic so they can be optimized or
+A/B tested without changing the 7-step RCA workflow.
 """
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
 import logging
 
 logger = logging.getLogger(__name__)
@@ -32,13 +17,8 @@ logger = logging.getLogger(__name__)
 # ============================================================
 # PER-STEP COMPLETION TOKEN LIMITS
 # ============================================================
-# These limits only cap the amount the LLM is allowed to generate.
-# The LangGraph workflow, prompts, state, parsing, and 7-step process
-# remain unchanged.
-#
-# The limits are intentionally small because each prompt asks for a
-# concise result. This prevents an unexpectedly verbose response from
-# consuming the daily Groq token quota.
+# These limits only cap generated output. The LangGraph workflow,
+# state, parsing, and 7-step process remain unchanged.
 SUMMARY_MAX_TOKENS = 200
 IMPACT_MAX_TOKENS = 250
 ROOT_CAUSE_MAX_TOKENS = 600
@@ -53,24 +33,15 @@ LESSONS_MAX_TOKENS = 400
 INCIDENT_SUMMARY_PROMPT = ChatPromptTemplate.from_messages([
     (
         "system",
-        """You are an expert Site Reliability Engineer (SRE) specializing in
-incident management and root cause analysis.
-
-Your job is to write a precise, factual 2-3 sentence incident summary.
-
-STRICT RULES:
-1. Use the ACTUAL incident ID, ACTUAL date/time, ACTUAL systems from the data provided.
-2. NEVER write "on an unspecified date" or "at an unknown time" — use what is given.
-   If the timeline has timestamps, use them. If the description has a date, use it.
-   If nothing is provided, say "occurred recently" — not "unspecified".
-3. Format: [What happened] on [date/time if known], affecting [specific systems].
-   [Severity and business impact in one sentence]. [How it was resolved if known].
-4. Do NOT add headings, bullet points, or markdown. Plain prose only.
-5. Be specific — name the actual systems, actual INC number, actual region."""
+        """You are an SRE specializing in incident management and RCA.
+Write a precise, factual 2-3 sentence incident summary.
+Use only the provided evidence. Preserve actual incident ID, dates/times,
+systems, severity, region, impact, and resolution details when available.
+Never invent missing facts. Plain prose only; no headings or bullets."""
     ),
     (
         "human",
-        """Write a 2-3 sentence summary of this incident.
+        """Summarize this incident in 2-3 sentences.
 
 INCIDENT ID: {title}
 SEVERITY: {severity}
@@ -79,9 +50,8 @@ DESCRIPTION: {description}
 TIMELINE: {timeline}
 ADDITIONAL CONTEXT: {additional_context}
 
-Extract the actual date and time from the timeline or description above.
-If the timeline shows timestamps like "17:25 GMT", use those.
-Write the summary now — no headings, no bullets, plain sentences only:"""
+Use actual dates/times from the evidence when available. If none are
+provided, say "occurred recently" rather than inventing a date/time."""
     )
 ])
 
@@ -92,22 +62,15 @@ Write the summary now — no headings, no bullets, plain sentences only:"""
 ROOT_CAUSE_PROMPT = ChatPromptTemplate.from_messages([
     (
         "system",
-        """You are a senior Root Cause Analysis expert with deep expertise in:
-- Distributed systems and microservices
-- Database performance and reliability
-- Cloud infrastructure (AWS, Azure, GCP)
-- CI/CD pipelines and deployments
-- Network and security issues
-
-You use the "5 Whys" methodology and fault tree analysis to identify
-root causes. You are systematic, evidence-based, and thorough.
-Never guess — base your analysis on the evidence provided."""
+        """You are a senior IT Root Cause Analysis expert.
+Use 5 Whys and fault-tree reasoning. Be systematic, technical, and
+evidence-based. Never guess or invent facts."""
     ),
     (
         "human",
-        """Analyze this incident and identify the ROOT CAUSE.
+        """Identify the ROOT CAUSE of this incident using the 5 Whys.
 
-=== INCIDENT DETAILS ===
+INCIDENT DETAILS
 Title: {title}
 Severity: {severity}
 Affected Systems: {affected_systems}
@@ -115,17 +78,16 @@ Description: {description}
 Timeline: {timeline}
 Additional Context: {additional_context}
 
-=== SIMILAR PAST INCIDENTS (from knowledge base) ===
+SIMILAR PAST INCIDENTS
 {similar_incidents}
 
-=== INSTRUCTIONS ===
-Using the 5 Whys methodology, identify:
-1. The PRIMARY root cause (the deepest underlying reason)
+Identify:
+1. The primary/deepest underlying root cause
 2. Why that root cause existed
-3. What trigger activated it
+3. The trigger that activated it
 
-Be specific and technical. Reference the timeline and context provided.
-If similar past incidents are shown, note any patterns.
+Be specific and technical. Reference the evidence and note relevant
+patterns from similar incidents when present.
 
 ROOT CAUSE ANALYSIS:"""
     )
@@ -138,25 +100,22 @@ ROOT CAUSE ANALYSIS:"""
 CONTRIBUTING_FACTORS_PROMPT = ChatPromptTemplate.from_messages([
     (
         "system",
-        """You are an incident analysis expert. Your role is to identify
-ALL contributing factors to an incident — not just the root cause,
-but everything that made the incident worse, harder to detect,
-or slower to resolve. Think about: people, process, technology, and environment."""
+        """You are an incident analysis expert. Identify evidence-supported
+people, process, technology, and environment factors that made the
+incident occur, worsen, harder to detect, or slower to resolve.
+Do not invent factors."""
     ),
     (
         "human",
-        """Based on this incident analysis, list the contributing factors.
+        """List 3-5 distinct contributing factors.
 
 INCIDENT: {title}
 DESCRIPTION: {description}
-ROOT CAUSE IDENTIFIED: {root_cause}
+ROOT CAUSE: {root_cause}
 TIMELINE: {timeline}
 
-List 3-5 contributing factors. Each should be a distinct factor that
-made the incident happen, worse, or harder to resolve.
-Format each as a single clear sentence.
-
-CONTRIBUTING FACTORS (one per line, starting with -):"""
+Each factor must be one clear sentence. Output one factor per line,
+starting with - ."""
     )
 ])
 
@@ -167,42 +126,28 @@ CONTRIBUTING FACTORS (one per line, starting with -):"""
 ACTION_ITEMS_PROMPT = ChatPromptTemplate.from_messages([
     (
         "system",
-        """You are an SRE manager creating actionable remediation plans.
-You focus on practical, implementable solutions with clear ownership.
-Every action item should be specific enough that an engineer knows
-exactly what to do without asking for clarification."""
+        """You are an SRE manager creating practical, implementable remediation
+plans. Make each action specific enough for an engineer to execute.
+Do not invent actions unsupported by the incident analysis."""
     ),
     (
         "human",
-        """Generate action items for this incident.
+        """Generate remediation actions for this incident.
 
 INCIDENT: {title}
 ROOT CAUSE: {root_cause}
 CONTRIBUTING FACTORS: {contributing_factors}
 AFFECTED SYSTEMS: {affected_systems}
 
-Generate TWO types of action items:
+IMMEDIATE ACTIONS: 2-3 actions to stop or mitigate the incident.
+CORRECTIVE ACTIONS: 3-5 tasks that permanently address the root cause.
+PREVENTIVE MEASURES: 3-5 measures that reduce recurrence risk.
 
-IMMEDIATE ACTIONS (what was/should be done to stop the bleeding):
-List 2-3 immediate actions taken or needed.
-
-CORRECTIVE ACTIONS (fix the root cause permanently):
-List 3-5 specific engineering tasks to fix the underlying issue.
-
-PREVENTIVE MEASURES (stop this from happening again):
-List 3-5 measures to prevent recurrence (monitoring, tests, processes).
-
-Format each as a clear, actionable bullet point starting with a verb.
-Example: "Add circuit breaker to payment service API calls"
-
+Make every item actionable and start each bullet with a verb.
+Use exactly these section headers:
 IMMEDIATE ACTIONS:
--
-
 CORRECTIVE ACTIONS:
--
-
-PREVENTIVE MEASURES:
--"""
+PREVENTIVE MEASURES:"""
     )
 ])
 
@@ -213,26 +158,22 @@ PREVENTIVE MEASURES:
 LESSONS_LEARNED_PROMPT = ChatPromptTemplate.from_messages([
     (
         "system",
-        """You are a blameless post-mortem facilitator. Your role is to
-extract learning from incidents in a constructive, forward-looking way.
-Focus on systemic improvements, not individual blame.
-Use the blameless post-mortem culture pioneered by Google SRE."""
+        """You are a blameless post-mortem facilitator. Extract constructive,
+systemic learning and avoid individual blame."""
     ),
     (
         "human",
-        """Write the "Lessons Learned" section for this incident post-mortem.
+        """Write the Lessons Learned section.
 
 INCIDENT: {title}
 ROOT CAUSE: {root_cause}
 CORRECTIVE ACTIONS: {corrective_actions}
 SIMILAR PAST INCIDENTS: {similar_incidents}
 
-Write 2-3 paragraphs covering:
-1. What this incident taught us about our systems/processes
-2. What we will do differently going forward
-3. Any broader organizational learning (if similar incidents occurred before)
-
-Be constructive, specific, and forward-looking.
+Write 2-3 concise paragraphs covering:
+1. What the incident taught us about systems/processes
+2. What should change going forward
+3. Broader organizational learning if similar incidents existed
 
 LESSONS LEARNED:"""
     )
@@ -245,8 +186,9 @@ LESSONS LEARNED:"""
 IMPACT_ASSESSMENT_PROMPT = ChatPromptTemplate.from_messages([
     (
         "system",
-        """You are a technical incident manager assessing business and technical
-impact of production incidents. Be precise about scope, duration, and effect."""
+        """You are a technical incident manager assessing production impact.
+Be precise about scope, duration, affected functionality, and business effect.
+Use only the supplied evidence; do not invent impact."""
     ),
     (
         "human",
@@ -258,11 +200,11 @@ AFFECTED SYSTEMS: {affected_systems}
 DESCRIPTION: {description}
 TIMELINE: {timeline}
 
-Describe the impact covering:
-- Which users/customers were affected
-- What functionality was unavailable or degraded
-- Estimated duration of impact
-- Business impact (if determinable from the information)
+Cover:
+- affected users/customers
+- unavailable or degraded functionality
+- estimated duration
+- business impact when determinable from the evidence
 
 IMPACT ASSESSMENT:"""
     )
@@ -273,11 +215,6 @@ IMPACT ASSESSMENT:"""
 # Chain Builder Functions
 # ============================================================
 def build_summary_chain(llm):
-    """
-    Chain = Prompt | LLM | OutputParser
-    The | symbol is LangChain's "pipe" operator.
-    Data flows left to right: prompt → llm → parse output
-    """
     return INCIDENT_SUMMARY_PROMPT | llm.bind(max_tokens=SUMMARY_MAX_TOKENS) | StrOutputParser()
 
 
@@ -305,57 +242,30 @@ def build_impact_chain(llm):
 # Helper: Parse bullet points from LLM output
 # ============================================================
 def parse_bullet_points(text: str) -> list:
-    """
-    Parse LLM output that contains bullet points into a Python list.
-
-    Input:  "- Fix the database\n- Add monitoring\n- Update docs"
-    Output: ["Fix the database", "Add monitoring", "Update docs"]
-    """
+    """Parse bullet/numbered LLM output into a Python list."""
     lines = text.strip().split("\n")
     items = []
     for line in lines:
         line = line.strip()
-        # Remove common bullet point prefixes
         for prefix in ["- ", "* ", "• ", "· "]:
             if line.startswith(prefix):
                 line = line[len(prefix):]
                 break
-        # Remove numbered list prefixes like "1. ", "2. "
         if len(line) > 2 and line[0].isdigit() and line[1] in ".):":
             line = line[2:].strip()
-        # Skip empty lines and section headers
         if line and len(line) > 3 and not line.endswith(":"):
             items.append(line)
     return items
 
 
 def parse_action_items(text: str) -> dict:
-    """
-    Parse the action items prompt output into three separate lists.
-
-    The prompt returns text with three sections:
-      IMMEDIATE ACTIONS:
-      - ...
-      CORRECTIVE ACTIONS:
-      - ...
-      PREVENTIVE MEASURES:
-      - ...
-
-    This function splits them into three Python lists.
-    """
-    sections = {
-        "immediate": [],
-        "corrective": [],
-        "preventive": []
-    }
-
+    """Split action-item output into immediate, corrective, and preventive lists."""
+    sections = {"immediate": [], "corrective": [], "preventive": []}
     current_section = None
     lines = text.strip().split("\n")
 
     for line in lines:
         line_lower = line.lower().strip()
-
-        # Detect section headers
         if "immediate" in line_lower:
             current_section = "immediate"
         elif "corrective" in line_lower:
@@ -363,7 +273,6 @@ def parse_action_items(text: str) -> dict:
         elif "preventive" in line_lower or "prevent" in line_lower:
             current_section = "preventive"
         elif current_section and line.strip().startswith("-"):
-            # Add bullet point to current section
             item = line.strip().lstrip("- ").strip()
             if item and len(item) > 3:
                 sections[current_section].append(item)
