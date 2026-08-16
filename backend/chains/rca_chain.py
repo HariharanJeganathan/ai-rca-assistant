@@ -30,6 +30,24 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
+# PER-STEP COMPLETION TOKEN LIMITS
+# ============================================================
+# These limits only cap the amount the LLM is allowed to generate.
+# The LangGraph workflow, prompts, state, parsing, and 7-step process
+# remain unchanged.
+#
+# The limits are intentionally small because each prompt asks for a
+# concise result. This prevents an unexpectedly verbose response from
+# consuming the daily Groq token quota.
+SUMMARY_MAX_TOKENS = 200
+IMPACT_MAX_TOKENS = 250
+ROOT_CAUSE_MAX_TOKENS = 600
+FACTORS_MAX_TOKENS = 300
+ACTIONS_MAX_TOKENS = 450
+LESSONS_MAX_TOKENS = 400
+
+
+# ============================================================
 # PROMPT 1: Incident Summarizer
 # ============================================================
 INCIDENT_SUMMARY_PROMPT = ChatPromptTemplate.from_messages([
@@ -260,27 +278,27 @@ def build_summary_chain(llm):
     The | symbol is LangChain's "pipe" operator.
     Data flows left to right: prompt → llm → parse output
     """
-    return INCIDENT_SUMMARY_PROMPT | llm | StrOutputParser()
+    return INCIDENT_SUMMARY_PROMPT | llm.bind(max_tokens=SUMMARY_MAX_TOKENS) | StrOutputParser()
 
 
 def build_root_cause_chain(llm):
-    return ROOT_CAUSE_PROMPT | llm | StrOutputParser()
+    return ROOT_CAUSE_PROMPT | llm.bind(max_tokens=ROOT_CAUSE_MAX_TOKENS) | StrOutputParser()
 
 
 def build_contributing_factors_chain(llm):
-    return CONTRIBUTING_FACTORS_PROMPT | llm | StrOutputParser()
+    return CONTRIBUTING_FACTORS_PROMPT | llm.bind(max_tokens=FACTORS_MAX_TOKENS) | StrOutputParser()
 
 
 def build_action_items_chain(llm):
-    return ACTION_ITEMS_PROMPT | llm | StrOutputParser()
+    return ACTION_ITEMS_PROMPT | llm.bind(max_tokens=ACTIONS_MAX_TOKENS) | StrOutputParser()
 
 
 def build_lessons_learned_chain(llm):
-    return LESSONS_LEARNED_PROMPT | llm | StrOutputParser()
+    return LESSONS_LEARNED_PROMPT | llm.bind(max_tokens=LESSONS_MAX_TOKENS) | StrOutputParser()
 
 
 def build_impact_chain(llm):
-    return IMPACT_ASSESSMENT_PROMPT | llm | StrOutputParser()
+    return IMPACT_ASSESSMENT_PROMPT | llm.bind(max_tokens=IMPACT_MAX_TOKENS) | StrOutputParser()
 
 
 # ============================================================
