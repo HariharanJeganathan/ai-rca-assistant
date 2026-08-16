@@ -21,11 +21,12 @@ logger = logging.getLogger(__name__)
 
 _db_connected = False
 _chroma_connected = False
+_kb_restored_count = 0
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _db_connected, _chroma_connected
+    global _db_connected, _chroma_connected, _kb_restored_count
     logger.info(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     try:
         validate_config()
@@ -55,6 +56,20 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"⚠️ ChromaDB: {e}")
         _chroma_connected = False
+
+    # ChromaDB's disk is ephemeral on this deployment (wiped on every
+    # restart). PostgreSQL is durable, so on every startup we rebuild the
+    # historical index from every completed report already in PostgreSQL —
+    # this is what makes historical search survive an app restart.
+    if _db_connected and _chroma_connected:
+        try:
+            from services.rca_service import RCAService
+            _kb_restored_count = await RCAService().reconcile_kb_from_db()
+            if _kb_restored_count:
+                logger.info(f"✅ Restored {_kb_restored_count} historical incidents from PostgreSQL into ChromaDB")
+        except Exception as e:
+            logger.warning(f"⚠️ KB reconciliation on startup failed: {e}")
+            _kb_restored_count = 0
 
     logger.info(f"✅ Ready! LLM: {settings.LLM_PROVIDER.upper()}")
     logger.info("📖 Docs: http://localhost:8000/docs")
@@ -107,6 +122,7 @@ async def health_check():
         "llm_provider": settings.LLM_PROVIDER,
         "database_connected": _db_connected,
         "chromadb_connected": _chroma_connected,
+        "historical_incidents_restored_on_startup": _kb_restored_count,
     }
 
 

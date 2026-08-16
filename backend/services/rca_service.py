@@ -74,11 +74,17 @@ class RCAService:
             await self._db_save(report, create=True)
 
         try:
-            # Step 1: Search ChromaDB for similar incidents
-            similar_incidents = await self._find_similar_incidents(incident)
+            # Step 1: Search the historical incident repository BEFORE generating
+            # anything. history_meta always records whether the search actually
+            # ran, how many past incidents were searched, and any error — so we
+            # never have to guess (or falsely claim) that history was checked.
+            similar_incidents, history_meta = await self._find_similar_incidents(incident)
 
-            # Step 2: Run LangGraph agent
+            # Step 2: Run LangGraph agent, using the historical matches as context
             analysis = await self._run_rca_agent(incident, similar_incidents)
+            analysis.historical_search_performed = history_meta["performed"]
+            analysis.historical_kb_size = history_meta["kb_size"]
+            analysis.historical_search_error = history_meta["error"]
 
             report.analysis = analysis
             report.status = RCAStatus.COMPLETED
@@ -91,8 +97,9 @@ class RCAService:
                 await self._db_save(report, create=False)
 
             # Step 4: Auto-ingest this incident into ChromaDB knowledge base
-            # So future similar incidents can find it!
-            await self._auto_ingest_to_kb(incident_id, incident, analysis)
+            # So future similar incidents can find it! Record success so the
+            # UI can confirm the incident was actually stored for future runs.
+            report.kb_ingested = await self._auto_ingest_to_kb(incident_id, incident, analysis)
 
             logger.info(f"[RCAService] Complete: {incident_id}")
             return report
@@ -114,11 +121,14 @@ class RCAService:
         incident_id: str,
         incident: IncidentInput,
         analysis: RCAAnalysis
-    ):
+    ) -> bool:
         """
         After every successful RCA, automatically add the incident to ChromaDB.
         This means future similar incidents will find it in the knowledge base.
         The KB grows with every RCA you run — getting smarter over time.
+
+        Returns True only if the incident was actually stored, so callers
+        (and the UI) can tell real persistence from a silent failure.
         """
         try:
             retriever = self._get_retriever()
@@ -136,24 +146,108 @@ class RCAService:
             )
             if success:
                 logger.info(f"[RCAService] Auto-ingested {incident_id} into ChromaDB KB")
+            return success
         except Exception as e:
             logger.warning(f"[RCAService] Auto-ingest to KB failed (non-critical): {e}")
+            return False
 
     # ============================================================
-    # 3. FIND SIMILAR INCIDENTS
+    # 3. FIND SIMILAR INCIDENTS — searches the historical repository
+    #    BEFORE any RCA content is generated.
     # ============================================================
-    async def _find_similar_incidents(self, incident: IncidentInput) -> List[Dict]:
+    async def _find_similar_incidents(self, incident: IncidentInput) -> Tuple[List[Dict], Dict[str, Any]]:
+        """
+        Search the historical incident repository for similar past incidents.
+
+        Returns (matches, meta) where meta always reports:
+          - performed: whether the search actually executed (not just "no error")
+          - kb_size:   how many historical incidents were available to search
+          - error:     the failure reason, if the search could not run
+
+        The caller must surface `meta` alongside the matches — an empty
+        `matches` list must never be presented as "no similar incidents"
+        unless `performed` is True. If `performed` is False, that means the
+        search itself failed and must be reported as such, not glossed over.
+        """
+        meta: Dict[str, Any] = {"performed": False, "kb_size": 0, "error": None}
         try:
+            retriever = self._get_retriever()
+            stats = await retriever.get_stats()
+            meta["kb_size"] = stats.get("total_incidents", 0)
+
             query = f"{incident.title}. {incident.description}"
             if incident.affected_systems:
                 query += f" Systems: {', '.join(incident.affected_systems)}"
-            retriever = self._get_retriever()
             results = await retriever.search(query=query, top_k=3, min_relevance=0.3)
-            logger.info(f"[RCAService] Found {len(results)} similar incidents")
-            return results
+            meta["performed"] = True
+            logger.info(
+                f"[RCAService] Historical search executed. "
+                f"KB size: {meta['kb_size']}. Matches found: {len(results)}"
+            )
+            return results, meta
         except Exception as e:
-            logger.warning(f"[RCAService] ChromaDB search failed: {e}")
-            return []
+            logger.warning(f"[RCAService] Historical search failed: {e}")
+            meta["error"] = str(e)
+            return [], meta
+
+    # ============================================================
+    # 3b. RECONCILE KNOWLEDGE BASE FROM POSTGRESQL
+    # ============================================================
+    async def reconcile_kb_from_db(self) -> int:
+        """
+        Rebuild the ChromaDB historical index from PostgreSQL on startup.
+
+        ChromaDB in this deployment lives on ephemeral disk (wiped on every
+        restart/redeploy), while PostgreSQL is the durable store — every
+        completed report is already saved there. So PostgreSQL is treated as
+        the source of truth: on every startup, any completed report that is
+        missing from ChromaDB gets re-ingested. This is what makes historical
+        search survive an application restart even though the vector index
+        itself does not.
+
+        Returns the number of incidents restored into ChromaDB.
+        """
+        db_ok = await self._is_db_available()
+        if not db_ok:
+            logger.warning("[RCAService] Skipping KB reconciliation — PostgreSQL unavailable")
+            return 0
+
+        try:
+            from db.database import AsyncSessionLocal
+            from db.postgres import RCARepository
+
+            async with AsyncSessionLocal() as session:
+                repo = RCARepository(session)
+                reports, total = await repo.list_reports(skip=0, limit=1000, status_filter="completed")
+
+            retriever = self._get_retriever()
+            existing_ids = await retriever.get_existing_ids()
+
+            restored = 0
+            for r in reports:
+                if not r.analysis or r.incident_id in existing_ids:
+                    continue
+                resolution = ". ".join(r.analysis.corrective_actions) if r.analysis.corrective_actions else None
+                ok = await retriever.ingest(
+                    incident_id=r.incident_id,
+                    title=r.incident.title,
+                    description=r.incident.description,
+                    severity=r.incident.severity.value,
+                    affected_systems=r.incident.affected_systems or [],
+                    root_cause=r.analysis.root_cause,
+                    resolution=resolution
+                )
+                if ok:
+                    restored += 1
+
+            logger.info(
+                f"[RCAService] KB reconciliation complete. "
+                f"Restored {restored}/{total} historical incidents from PostgreSQL into ChromaDB."
+            )
+            return restored
+        except Exception as e:
+            logger.warning(f"[RCAService] KB reconciliation failed: {e}")
+            return 0
 
     # ============================================================
     # 4. RUN RCA AGENT

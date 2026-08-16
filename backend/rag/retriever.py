@@ -106,7 +106,10 @@ class IncidentRetriever:
 
             for i, doc_id in enumerate(results["ids"][0]):
                 distance = results["distances"][0][i]
-                similarity = 1 - (distance / 2)
+                # Collection uses hnsw:space="cosine", where ChromaDB's
+                # returned distance is (1 - cosine_similarity), ranging
+                # 0 (identical) to 2 (opposite) — so similarity = 1 - distance.
+                similarity = max(0.0, min(1.0, 1 - distance))
                 if similarity < min_relevance:
                     continue
                 metadata = results["metadatas"][0][i]
@@ -131,6 +134,23 @@ class IncidentRetriever:
             return {"total_incidents": self._collection.count(), "status": "connected"}
         except Exception as e:
             return {"total_incidents": 0, "status": "error", "error": str(e)}
+
+    async def get_existing_ids(self) -> set:
+        """
+        Return the set of incident_ids currently stored in ChromaDB.
+        Used to reconcile the (ephemeral) vector index against the
+        (persistent) PostgreSQL store on startup, without re-ingesting
+        incidents that are already present.
+        """
+        try:
+            self._initialize()
+            if self._collection.count() == 0:
+                return set()
+            data = self._collection.get(include=[])
+            return set(data.get("ids", []))
+        except Exception as e:
+            logger.error(f"[Retriever] get_existing_ids error: {e}")
+            return set()
 
     async def delete(self, incident_id):
         try:
