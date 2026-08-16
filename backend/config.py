@@ -50,7 +50,7 @@ def _load_groq():
     from langchain_groq import ChatGroq
     if not settings.GROQ_API_KEY:
         raise ValueError("GROQ_API_KEY is empty!")
-    return ChatGroq(api_key=settings.GROQ_API_KEY, model=settings.GROQ_MODEL, temperature=0.1, max_tokens=2000)
+    return ChatGroq(api_key=settings.GROQ_API_KEY, model=settings.GROQ_MODEL, temperature=0.1, max_tokens=800)
 
 
 def _load_openai():
