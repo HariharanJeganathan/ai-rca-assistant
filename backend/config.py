@@ -17,6 +17,8 @@ class Settings:
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "groq").lower()
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama3-8b-8192")
+    GROQ_MAX_RETRIES: int = int(os.getenv("GROQ_MAX_RETRIES", "2"))
+    GROQ_TIMEOUT_SECONDS: int = int(os.getenv("GROQ_TIMEOUT_SECONDS", "60"))
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
     AZURE_OPENAI_API_KEY: str = os.getenv("AZURE_OPENAI_API_KEY", "")
@@ -50,7 +52,20 @@ def _load_groq():
     from langchain_groq import ChatGroq
     if not settings.GROQ_API_KEY:
         raise ValueError("GROQ_API_KEY is empty!")
-    return ChatGroq(api_key=settings.GROQ_API_KEY, model=settings.GROQ_MODEL, temperature=0.1, max_tokens=800)
+
+    # Keep provider retries bounded. Temporary 429s can recover, but a
+    # daily quota exhaustion cannot be fixed by repeated requests. The
+    # RCA nodes already have controlled fallback/error handling, so a
+    # bounded retry policy prevents long retry loops without changing the
+    # LangGraph workflow or any RCA step.
+    return ChatGroq(
+        api_key=settings.GROQ_API_KEY,
+        model=settings.GROQ_MODEL,
+        temperature=0.1,
+        max_tokens=800,
+        max_retries=settings.GROQ_MAX_RETRIES,
+        timeout=settings.GROQ_TIMEOUT_SECONDS,
+    )
 
 
 def _load_openai():
