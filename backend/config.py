@@ -21,10 +21,10 @@ class Settings:
 
     # Groq
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
-    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
     # Safe fallback for environments where the configured Groq model is
     # unavailable because of model retirement or project permissions.
-    GROQ_FALLBACK_MODEL: str = os.getenv("GROQ_FALLBACK_MODEL", "llama-3.1-8b-instant")
+    GROQ_FALLBACK_MODEL: str = os.getenv("GROQ_FALLBACK_MODEL", "openai/gpt-oss-20b")
     GROQ_MAX_RETRIES: int = int(os.getenv("GROQ_MAX_RETRIES", "2"))
     GROQ_TIMEOUT_SECONDS: int = int(os.getenv("GROQ_TIMEOUT_SECONDS", "60"))
 
@@ -73,7 +73,7 @@ def _resolve_groq_model() -> str:
     seven RCA steps to fail.
     """
     requested = settings.GROQ_MODEL.strip()
-    fallback = settings.GROQ_FALLBACK_MODEL.strip() or "llama-3.1-8b-instant"
+    fallback = settings.GROQ_FALLBACK_MODEL.strip() or "openai/gpt-oss-120b"
 
     from groq import Groq
 
