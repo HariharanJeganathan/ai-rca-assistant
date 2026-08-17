@@ -37,6 +37,9 @@ services:
       - key: LLM_PROVIDER
         value: groq           # Change to openai or azure if needed
 
+      - key: GROQ_MODEL
+        value: llama-3.1-8b-instant
+
       - key: GROQ_API_KEY
         sync: false           # Render will ask you to enter this
 
