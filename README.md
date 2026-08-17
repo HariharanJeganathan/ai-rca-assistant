@@ -33,7 +33,7 @@ Incident Report (text/PDF)
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
 | **AI Orchestration** | LangGraph | Multi-step reasoning agent |
-| **LLM** | Groq (LLaMA 3) / OpenAI / Azure OpenAI | Language model (switchable) |
+| **LLM** | Groq (openai/gpt-oss-20b, fallback openai/gpt-oss-120b) / OpenAI / Azure OpenAI | Language model (switchable) |
 | **RAG** | LangChain + ChromaDB | Similar incident retrieval |
 | **Embeddings** | HuggingFace (all-MiniLM-L6-v2) | Text → vectors |
 | **API** | FastAPI | REST API framework |
