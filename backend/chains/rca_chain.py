@@ -19,12 +19,12 @@ logger = logging.getLogger(__name__)
 # ============================================================
 # These limits only cap generated output. The LangGraph workflow,
 # state, parsing, and 7-step process remain unchanged.
-SUMMARY_MAX_TOKENS = 200
-IMPACT_MAX_TOKENS = 250
-ROOT_CAUSE_MAX_TOKENS = 600
-FACTORS_MAX_TOKENS = 300
-ACTIONS_MAX_TOKENS = 450
-LESSONS_MAX_TOKENS = 400
+SUMMARY_MAX_TOKENS = 500
+IMPACT_MAX_TOKENS = 500
+ROOT_CAUSE_MAX_TOKENS = 700
+FACTORS_MAX_TOKENS = 450
+ACTIONS_MAX_TOKENS = 600
+LESSONS_MAX_TOKENS = 500
 
 
 # ============================================================
