@@ -16,7 +16,10 @@ class Settings:
     DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "groq").lower()
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
-    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama3-8b-8192")
+    # Current production Groq model. Keep this configurable through the
+    # environment so Render/Azure/test environments can select their model
+    # without changing the RCA workflow code.
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
     GROQ_MAX_RETRIES: int = int(os.getenv("GROQ_MAX_RETRIES", "2"))
     GROQ_TIMEOUT_SECONDS: int = int(os.getenv("GROQ_TIMEOUT_SECONDS", "60"))
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
