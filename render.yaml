@@ -1,73 +1,62 @@
 # render.yaml — Render Deployment Configuration
 # ================================================
-# This file tells Render exactly how to deploy the app.
-# Render reads this automatically when you connect your GitHub repo.
-#
-# Free tier notes:
-#   - Web service spins down after 15 mins of inactivity
-#   - First request after spin-down takes ~30 seconds (cold start)
-#   - This is fine for a portfolio project
+# Render reads this file when the repository is connected.
+# Secrets such as API keys and DATABASE_URL remain in Render Environment.
 
 services:
   - type: web
     name: ai-rca-assistant
     runtime: python
-    region: oregon          # Free tier region
+    region: oregon
     plan: free
 
-    # Where to find the app
-    rootDir: backend        # All Python code is in /backend
-
-    # How to install dependencies
+    rootDir: backend
     buildCommand: pip install -r requirements.txt
-
-    # How to start the app
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-
-    # Health check — Render pings this to know if app is alive
     healthCheckPath: /health
 
-    # Environment variables
-    # IMPORTANT: Set these in Render dashboard — NOT here
-    # (never put real API keys in this file)
     envVars:
       - key: PYTHON_VERSION
         value: "3.11"
-
       - key: LLM_PROVIDER
-        value: groq           # Change to openai or azure if needed
-
+        value: groq
       - key: GROQ_MODEL
         value: llama-3.1-8b-instant
-
+      - key: GROQ_FALLBACK_MODEL
+        value: llama-3.1-8b-instant
+      - key: GROQ_MAX_RETRIES
+        value: "2"
+      - key: GROQ_TIMEOUT_SECONDS
+        value: "60"
       - key: GROQ_API_KEY
-        sync: false           # Render will ask you to enter this
+        sync: false
 
       - key: OPENAI_API_KEY
-        sync: false           # Optional — only if using OpenAI
+        sync: false
+      - key: AZURE_OPENAI_API_KEY
+        sync: false
+      - key: AZURE_OPENAI_ENDPOINT
+        sync: false
+      - key: AZURE_OPENAI_DEPLOYMENT
+        sync: false
+      - key: AZURE_OPENAI_API_VERSION
+        value: "2024-02-01"
 
       - key: DATABASE_URL
-        sync: false           # Your Supabase PostgreSQL URL
+        sync: false
 
+      # The ChromaDB retriever uses ChromaDB's own lightweight ONNX
+      # embedding function, keeping the Render free-tier deployment light.
       - key: EMBEDDING_PROVIDER
-        value: huggingface    # Free, runs locally
-
+        value: chromadb
       - key: EMBEDDING_MODEL
         value: all-MiniLM-L6-v2
-
       - key: CHROMA_PERSIST_PATH
-        value: /tmp/chroma    # Render free tier has no persistent disk, so this
-                              # resets on every restart/redeploy. That's OK: the
-                              # app rebuilds this index from PostgreSQL (which IS
-                              # persistent) on every startup — see
-                              # RCAService.reconcile_kb_from_db(), called from
-                              # main.py's lifespan handler.
+        value: /tmp/chroma
 
       - key: DEBUG
-        value: "false"        # Always false in production
-
+        value: "false"
       - key: APP_NAME
         value: "AI RCA Assistant"
-
       - key: APP_VERSION
         value: "1.0.0"
